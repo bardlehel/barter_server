@@ -1,5 +1,9 @@
 // app/routes.js
-var uuid = require('node-uuid');
+var User = require('./models/user.js');
+var mongoose = require('mongoose');
+var configDB = require('../config/database.js');
+var conn = mongoose.createConnection(configDB.barter_url);
+var BarterUser = require('./models/user.js')(conn);
 
 
 
@@ -18,9 +22,9 @@ module.exports = function(app, passport) {
 	// =====================================
 	// show the login form
 	app.get('/login', function(req, res) {
-		console.log('test3');
 		// render the page and pass in any flash data if it exists
 		res.render('login.ejs', { message: req.flash('loginMessage') }); 
+		
 	});
 
 	// process the login form
@@ -58,23 +62,125 @@ module.exports = function(app, passport) {
 		res.redirect('/');
 	});
 	
+	
+	
+	
+	app.get('/api/get_has', function(req, res){
+		
+		if (req.query.accessToken != req.session.accessToken) {
+			res.json({result: 'failure', reason: 'incorrect access token'});
+		}
+		
+		BarterUser.findOne({ 'climbtime.user_id' : req.query.user_id}, function(err, barterUser){
+			if(!barterUser)
+				res.json({ message: 'no user found'});
+			else
+				res.json(barterUser.has);
+		});
+		
+	});
+	
+	app.get('/api/get_wants', function(req, res){
+		if (req.query.accessToken != req.session.accessToken) {
+			res.json({result: 'failure', reason: 'incorrect access token'});
+		}
+		
+		BarterUser.findOne({ 'climbtime.user_id' : req.query.user_id}, function(err, barterUser){
+			if(!barterUser)
+				res.json({ message: 'no user found'});
+			else
+				res.json(barterUser.wants);
+		});
+	});
+	
+	app.get('/api/autocomplete_topic', function(req, res){
+		Category.findOne({title: new RegExp('^'+ req.query.title +'$', "i")}, function(err, category) {
+			res.json(category);
+		});
+	});
+	
+	app.post('/api/add_want', function(req, res){
+		if (req.query.accessToken != req.session.accessToken) {
+			res.json({result: 'failure', reason: 'incorrect access token'});
+		}
+		
+		//get my user
+		BarterUser.findOne({climbtime_user : req.user.climbtime.id}, function(err, barterUser){
+			barterUser.want.push(req.query.category_id);
+		});
+	});
+	
+	app.post('/api/add_has', function(req, res){
+		if (req.query.accessToken != req.session.accessToken) {
+			res.json({result: 'failure', reason: 'incorrect access token'});
+		}
+		
+		//get my user
+		BarterUser.findOne({climbtime_user : req.user.climbtime.id}, function(err, barterUser){
+			barterUser.has.push(req.query.category_id);
+		});
+	});
+	
+	app.post('/api/remove_want', function(req, res){
+		if (req.query.accessToken != req.session.accessToken) {
+			res.json({result: 'failure', reason: 'incorrect access token'});
+		}
+		
+		//get my user
+		BarterUser.findOne({climbtime_user : req.user.climbtime.id}, function(err, barterUser){
+			barterUser.wants.remove(req.query.category_id);
+		});
+	});
+	
+	app.post('/api/remove_has', function(req, res){
+		if (req.query.accessToken != req.session.accessToken) {
+			res.json({result: 'failure', reason: 'incorrect access token'});
+		}
+		
+		//get my user
+		BarterUser.findOne({climbtime_user : req.user.climbtime.id}, function(err, barterUser){
+			barterUser.has.remove(req.query.category_id);
+		});
+	});
+	
+	app.get('/api/get_users_who_have', function(req, res){
+		if (req.query.accessToken != req.session.accessToken) {
+			res.json({result: 'failure', reason: 'incorrect access token'});
+		}
+		
+		//get my user
+		BarterUser.find({has : req.query.category_id}, function(err, users){
+			res.json(users);
+		});
+	});
+	
+	app.get('/api/get_users_who_want', isLoggedIn, function(req, res){
+		if (req.query.accessToken != req.session.accessToken) {
+			res.json({result: 'failure', reason: 'incorrect access token'});
+		}
+		
+		//get my user
+		BarterUser.find({wants : req.query.category_id}, function(err, users){
+			res.json(users);
+		});
+	});
+	
 	// process the signup form
 	app.post('/signup', passport.authenticate('local-signup', {
 		successRedirect : '/profile', // redirect to the secure profile section
 		failureRedirect : '/signup', // redirect back to the signup page if there is an error
 		failureFlash : true}));
+		
 	
-	app.post('/login', passport.authenticate('local-login', {
-		successRedirect : '/profile', // redirect to the secure profile section
-		failureRedirect : '/login', // redirect back to the signup page if there is an error
-		failureFlash : true},
-		function(req, res) {
-			
-            //JSON.stringify(req.user);
-            res.redirect('/profile');
-            accessToken = uuid.v1();
-            res.json({token : accessToken});
-        }));
+	app.post('/login', passport.authenticate('climbtime-login'), 
+	function(req, res) {	
+		res.json({accessToken: req.session.accessToken});
+	  });
+	
+	app.post('/api/login', passport.authenticate('climbtime-login'), 
+	function(req, res) {	
+		res.json({accessToken: req.session.accessToken});
+	  });
 
 };
 

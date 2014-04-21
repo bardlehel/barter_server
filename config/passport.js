@@ -2,10 +2,18 @@
 
 // load all the things we need
 var LocalStrategy   = require('passport-local').Strategy;
+var uuid = require('node-uuid');
+var bcrypt = require('bcrypt-nodejs');
 
 
 // load up the user model
-var User       		= require('../app/models/user');
+var mongoose = require('mongoose');
+var configDB = require('./database.js');
+var conn = mongoose.createConnection(configDB.climbtime_url).on('error', function (err) {
+	console.log(err);
+});
+var User = require('../app/models/user.js')(conn);
+var ClimbtimeUser = require('../app/models/climbtimeuser.js')(conn);
 
 // expose this function to our app using module.exports
 module.exports = function(passport) {
@@ -57,6 +65,9 @@ module.exports = function(passport) {
             	return done(null, false, req.flash('loginMessage', 'Oops! Wrong password.')); // create the loginMessage and save it to session as flashdata
             }
             // all is well, return successful user
+            req.session.accessToken = uuid.v1();
+            console.log(req.session.accessToken);
+            
             return done(null, user);
         });
 
@@ -115,6 +126,46 @@ module.exports = function(passport) {
         });
 
     }));
+    
+    passport.use('climbtime-login', new LocalStrategy({
+        // by default, local strategy uses username and password, we will override with email
+        usernameField : 'email',
+        passwordField : 'password',
+        passReqToCallback : true // allows us to pass back the entire request to the callback
+    },
+    function(req, email, password, done) { // callback with email and password from our form
+		
+    	console.log('hello there: email = ' + email);
+    	// find a user whose email is the same as the forms email
+		// we are checking to see if the user trying to login already exists
+        ClimbtimeUser.findOne({ 'email' :  email }, function(err, user) {
+            // if there are any errors, return the error before anything else
+            if (err)
+            {
+            	console.log('error finding user');
+                return done(err);
+            }
+            // if no user is found, return the message
+            if (!user) {
+            	console.log('user not found!');
+            	return done(null, false, req.flash('loginMessage', 'No user found.')); // req.flash is the way to set flashdata using connect-flash
+            }
+            
+			// if the user is found but the password is wrong
+          //bcrypt.compareSync("bacon", hash); // true
+            if (!bcrypt.compareSync(password, user.password)) {
+            	console.log('wrong password! pw= "' + user.password + '"');
+            	return done(null, false, req.flash('loginMessage', 'Oops! Wrong password.')); // create the loginMessage and save it to session as flashdata
+            }
+            // all is well, return successful user
+            req.session.accessToken = uuid.v1();
+            console.log(req.session.accessToken);
+            
+            return done(null, user);
+        });
+
+    }));
+
     
     
 };

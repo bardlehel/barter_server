@@ -2,6 +2,11 @@
 // load the things we need
 var mongoose = require('mongoose');
 var bcrypt   = require('bcrypt-nodejs');
+var dbConfig   = require('../../config/database.js');
+var conn     = mongoose.createConnection(dbConfig.climbtime_url);
+var category = require('./category.js')(conn);
+
+var ObjectId = mongoose.Schema.ObjectId;
 
 // define the schema for our user model
 var userSchema = mongoose.Schema({
@@ -27,8 +32,14 @@ var userSchema = mongoose.Schema({
         token        : String,
         email        : String,
         name         : String
-    }
-
+    },
+    climbtime		 : {
+    	id			 : ObjectId,
+    	email		 : String,
+    },
+    
+    has : [category],
+	wants: [category]
 });
 
 // methods ======================
@@ -43,4 +54,6 @@ userSchema.methods.validPassword = function(password) {
 };
 
 // create the model for users and expose it to our app
-module.exports = mongoose.model('User', userSchema);
+module.exports = function(dbconn) {
+	return dbconn.model('User', userSchema);
+};
