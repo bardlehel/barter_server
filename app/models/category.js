@@ -24,6 +24,8 @@ var category = mongoose.Schema({
 	
 });
 
+exports.schema = category;
+
 
 module.exports = function (dbconn) {
 	return dbconn.model('category', category, 'category');

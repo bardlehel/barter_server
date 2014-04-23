@@ -2,8 +2,11 @@
 var User = require('./models/user.js');
 var mongoose = require('mongoose');
 var configDB = require('../config/database.js');
-var conn = mongoose.createConnection(configDB.barter_url);
-var BarterUser = require('./models/user.js')(conn);
+var barterConn = mongoose.createConnection(configDB.barter_url);
+var climbtimeConn = mongoose.createConnection(configDB.climbtime_url);
+var BarterUser = require('./models/user.js')(barterConn);
+var Category = require('./models/category.js')(climbtimeConn);
+
 
 
 
@@ -69,13 +72,18 @@ module.exports = function(app, passport) {
 		
 		if (req.query.accessToken != req.session.accessToken) {
 			res.json({result: 'failure', reason: 'incorrect access token'});
+			return;
 		}
 		
-		BarterUser.findOne({ 'climbtime.user_id' : req.query.user_id}, function(err, barterUser){
-			if(!barterUser)
+		console.log('req.user = ' + req.user);
+		console.log('req.isAuthenticated = ' + req.isAuthenticated());
+		console.log('req.session = '+ req.session);
+		
+		BarterUser.findOne({ 'climbtime.user_id' : req.query.user_id}, function(err, user){
+			if(!user)
 				res.json({ message: 'no user found'});
 			else
-				res.json(barterUser.has);
+				res.json(user.has);
 		});
 		
 	});
@@ -83,6 +91,7 @@ module.exports = function(app, passport) {
 	app.get('/api/get_wants', function(req, res){
 		if (req.query.accessToken != req.session.accessToken) {
 			res.json({result: 'failure', reason: 'incorrect access token'});
+			return;
 		}
 		
 		BarterUser.findOne({ 'climbtime.user_id' : req.query.user_id}, function(err, barterUser){
@@ -94,30 +103,78 @@ module.exports = function(app, passport) {
 	});
 	
 	app.get('/api/autocomplete_topic', function(req, res){
+		if (req.query.accessToken != req.session.accessToken) {
+			res.json({result: 'failure', reason: 'incorrect access token'});
+			return;
+		}
+		
 		Category.findOne({title: new RegExp('^'+ req.query.title +'$', "i")}, function(err, category) {
 			res.json(category);
 		});
 	});
 	
-	app.post('/api/add_want', function(req, res){
+	app.get('/api/get_topic_by_title', function(req, res){
 		if (req.query.accessToken != req.session.accessToken) {
 			res.json({result: 'failure', reason: 'incorrect access token'});
+			return;
 		}
 		
-		//get my user
-		BarterUser.findOne({climbtime_user : req.user.climbtime.id}, function(err, barterUser){
-			barterUser.want.push(req.query.category_id);
+		Category.findOne({title: req.query.title}, function(err, category) {
+			
+			if(!category) {//create it 
+				category = new Category({title: req.query.title});
+				category.save();
+			}
+			res.json(category);
 		});
 	});
 	
-	app.post('/api/add_has', function(req, res){
+	app.get('/api/add_want', function(req, res){
+		if (req.query.accessToken != req.session.accessToken) {
+			console.log('supplied:' + req.query.accessToken);
+			console.log('stored:' + req.session.accessToken);
+			res.json({result: 'failure', reason: 'incorrect access token'});
+			return;
+		}
+		
+		
+		console.log('req.user = ' + req.user);
+		
+		//get my user
+		BarterUser.findOne({'climbtime.user_id' : req.user.id}, function(err, user){
+			
+			console.log('user.wants.length='+ user.wants.length);
+			for(var i = 0; i != user.wants.length; i++) {
+				if(user.wants[i]._id == req.query.category_id) {
+					res.json({result: 'failure', reason: 'topic already added to wants list'});
+					return;
+				}
+			}
+			console.log('test2');
+			//if(user.wants.indexOf(req.query.category_id) > -1)
+			//	return;
+			
+			user.wants.push(req.query.category_id);
+			user.save();
+			
+			res.json({result: 'success'});
+			
+		});
+	});
+	
+	app.get('/api/add_has', function(req, res){
 		if (req.query.accessToken != req.session.accessToken) {
 			res.json({result: 'failure', reason: 'incorrect access token'});
 		}
 		
 		//get my user
-		BarterUser.findOne({climbtime_user : req.user.climbtime.id}, function(err, barterUser){
+		BarterUser.findOne({'climbtime.user_id' : req.user.id}, function(err, barterUser){
+			
+			if(barterUser.has.indexOf(req.query.category_id) > -1)
+				return;
+			
 			barterUser.has.push(req.query.category_id);
+			barterUser.save();
 		});
 	});
 	
@@ -127,8 +184,9 @@ module.exports = function(app, passport) {
 		}
 		
 		//get my user
-		BarterUser.findOne({climbtime_user : req.user.climbtime.id}, function(err, barterUser){
+		BarterUser.findOne({'climbtime.user_id' : req.user.climbtime.id}, function(err, barterUser){
 			barterUser.wants.remove(req.query.category_id);
+			barterUser.save();
 		});
 	});
 	
@@ -138,8 +196,9 @@ module.exports = function(app, passport) {
 		}
 		
 		//get my user
-		BarterUser.findOne({climbtime_user : req.user.climbtime.id}, function(err, barterUser){
+		BarterUser.findOne({'climbtime.user_id' : req.user.climbtime.id}, function(err, barterUser){
 			barterUser.has.remove(req.query.category_id);
+			barterUser.save();
 		});
 	});
 	
@@ -157,6 +216,7 @@ module.exports = function(app, passport) {
 	app.get('/api/get_users_who_want', isLoggedIn, function(req, res){
 		if (req.query.accessToken != req.session.accessToken) {
 			res.json({result: 'failure', reason: 'incorrect access token'});
+			return;
 		}
 		
 		//get my user
@@ -178,7 +238,8 @@ module.exports = function(app, passport) {
 	  });
 	
 	app.post('/api/login', passport.authenticate('climbtime-login'), 
-	function(req, res) {	
+	function(req, res) {
+		console.log('req.user = ' + req.user);
 		res.json({accessToken: req.session.accessToken});
 	  });
 

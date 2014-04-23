@@ -38,8 +38,8 @@ var userSchema = mongoose.Schema({
     	email		 : String,
     },
     
-    has : [category],
-	wants: [category]
+    has : [category.schema],
+	wants: [category.schema]
 });
 
 // methods ======================
@@ -55,5 +55,5 @@ userSchema.methods.validPassword = function(password) {
 
 // create the model for users and expose it to our app
 module.exports = function(dbconn) {
-	return dbconn.model('User', userSchema);
+	return dbconn.model('User', userSchema, 'users');
 };

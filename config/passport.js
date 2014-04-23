@@ -9,11 +9,12 @@ var bcrypt = require('bcrypt-nodejs');
 // load up the user model
 var mongoose = require('mongoose');
 var configDB = require('./database.js');
-var conn = mongoose.createConnection(configDB.climbtime_url).on('error', function (err) {
+var climbtimeConn = mongoose.createConnection(configDB.climbtime_url).on('error', function (err) {
 	console.log(err);
 });
-var User = require('../app/models/user.js')(conn);
-var ClimbtimeUser = require('../app/models/climbtimeuser.js')(conn);
+var barterConn = mongoose.createConnection(configDB.climbtime_url);
+var User = require('../app/models/user.js')(barterConn);
+var ClimbtimeUser = require('../app/models/climbtimeuser.js')(climbtimeConn);
 
 // expose this function to our app using module.exports
 module.exports = function(passport) {
@@ -31,8 +32,9 @@ module.exports = function(passport) {
 
     // used to deserialize the user
     passport.deserializeUser(function(id, done) {
-        User.findById(id, function(err, user) {
-            done(err, user);
+    	console.log('deserealizing id:' + id);
+        ClimbtimeUser.findOne({_id : id.toString()}, function(err, user) {
+        	done(err, user);
         });
     });
     
