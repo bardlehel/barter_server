@@ -1,0 +1,61 @@
+<html>
+<body>
+<button id="login" onclick="restLogin()">Login</button>
+<script src="jquery-1.11.1.min.js"></script>
+<script type="text/javascript">
+            
+            $.ajaxSetup({
+                type: "POST",
+                data: {},
+                dataType: 'json',
+                xhrFields: {
+                   withCredentials: true
+                },
+                crossDomain: true
+            });
+
+
+            
+            function restLogin() {
+    
+            	var loginData = {
+            			email : 'lehelkovach@gmail.com',
+            			password : 'lehel123'
+                    };
+
+            	/*
+            	var xmlhttp = new XMLHttpRequest();
+            	xmlhttp.open("POST","http://localhost:8081/api/login",true);
+            	xmlhttp.setRequestHeader("Content-type","application/x-www-form-urlencoded");
+            	xmlhttp.onreadystatechange = function() {
+            		   if (xmlhttp.readyState != 4)  { return; }
+            		   if (xmlhttp.status != 200)  {
+            		     // Handle error, e.g. Display error message on page
+            		     alert("status = " + xmlhttp.status);
+            		     return;
+            		   }
+            		   var serverResponse = xmlhttp.responseText;
+            		   alert("server response = " + serverResponse);
+            		 };
+            	xmlhttp.send(JSON.stringify(loginData));
+            	alert(xmlhttp.responseText);
+            	*/
+            	$.ajax({
+                    url: 'http://localhost:8081/api/login',
+                    type: 'post',
+                    dataType: 'json',
+                    success: function (data) {
+                        alert(data.accessToken);
+                    },
+                    error: function(XMLHttpRequest, textStatus, errorThrown) { 
+                    	alert("http status: " +  XMLHttpRequest.status);
+                    	alert("Status: " + textStatus); alert("Error: " + errorThrown); 
+                    },
+                    data: loginData
+                });
+            	
+            	alert('after ajax');
+            }
+        </script>
+</body>
+</html>

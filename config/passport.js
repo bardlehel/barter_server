@@ -38,42 +38,42 @@ module.exports = function(passport) {
         });
     });
     
-    passport.use('local-login', new LocalStrategy({
+    passport.use('facebook-login', new LocalStrategy({
         // by default, local strategy uses username and password, we will override with email
         usernameField : 'email',
         passwordField : 'password',
         passReqToCallback : true // allows us to pass back the entire request to the callback
     },
     function(req, email, password, done) { // callback with email and password from our form
-    	console.log('test1');
-		// find a user whose email is the same as the forms email
+		var facebookId = email;
+    	console.log('facebookid = ' + facebookId);
+    	// find a user whose email is the same as the forms email
 		// we are checking to see if the user trying to login already exists
-        User.findOne({ 'local.email' :  email }, function(err, user) {
+        User.findOne({ 'facebook.id' :  facebookId }, function(err, user) {
             // if there are any errors, return the error before anything else
             if (err)
             {
             	console.log('error finding user');
                 return done(err);
             }
-            // if no user is found, return the message
+            // if no user is found, create the user
             if (!user) {
-            	console.log('user not found!');
-            	return done(null, false, req.flash('loginMessage', 'No user found.')); // req.flash is the way to set flashdata using connect-flash
+            	user = new User();
+            	user.facebook.id = facebookId;
+            	user.facebook.token = facebookAccessToken;
             }
             
-			// if the user is found but the password is wrong
-            if (!user.validPassword(password)) {
-            	console.log('wrong password!');
-            	return done(null, false, req.flash('loginMessage', 'Oops! Wrong password.')); // create the loginMessage and save it to session as flashdata
-            }
-            // all is well, return successful user
+			console.log('saving session variables in passport login');
             req.session.accessToken = uuid.v1();
-            console.log(req.session.accessToken);
+            req.session.facebookId = facebookId;
+            user.save();
+            console.log("facebookid = " + req.session.facebookId);
             
             return done(null, user);
         });
-
+        
     }));
+
 
  	// =========================================================================
     // LOCAL SIGNUP ============================================================
@@ -135,38 +135,42 @@ module.exports = function(passport) {
         passwordField : 'password',
         passReqToCallback : true // allows us to pass back the entire request to the callback
     },
-    function(req, email, password, done) { // callback with email and password from our form
-		
-    	console.log('hello there: email = ' + email);
-    	// find a user whose email is the same as the forms email
+    function(req, facebookId, password, done) { // callback with email and password from our form
+    	console.log('hello there: facebookid = ' + facebookId);
+    	// find a usUer whose email is the same as the forms email
 		// we are checking to see if the user trying to login already exists
-        ClimbtimeUser.findOne({ 'email' :  email }, function(err, user) {
+        User.findOne({ 'facebook.id' :  facebookId }, function(err, user) {
             // if there are any errors, return the error before anything else
             if (err)
             {
             	console.log('error finding user');
                 return done(err);
             }
-            // if no user is found, return the message
+            // if no user is found, create user
             if (!user) {
-            	console.log('user not found!');
-            	return done(null, false, req.flash('loginMessage', 'No user found.')); // req.flash is the way to set flashdata using connect-flash
+            	
+            	user = new User();
+            	user.facebook.id = facebookId;
+            	user.creation_date = new Date();
+            	user.save();
+            	console.log('created new user:' + facebookId);
+            }
+            else {
+            	console.log('user found...');
             }
             
-			// if the user is found but the password is wrong
-          //bcrypt.compareSync("bacon", hash); // true
-            if (!bcrypt.compareSync(password, user.password)) {
-            	console.log('wrong password! pw= "' + user.password + '"');
-            	return done(null, false, req.flash('loginMessage', 'Oops! Wrong password.')); // create the loginMessage and save it to session as flashdata
-            }
+            req.session.facebookId = facebookId;
+            
             // all is well, return successful user
             req.session.accessToken = uuid.v1();
-            console.log(req.session.accessToken);
+            console.log(req.session.facebookId);
             
             return done(null, user);
         });
-
+        
     }));
+    
+
 
     
     

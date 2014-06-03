@@ -12,7 +12,58 @@ var Category = require('./models/category.js')(climbtimeConn);
 
 
 module.exports = function(app, passport) {
+	
+	
+	//finds category id and returns it in json format or
+	//adds the category if does not exist
+	//params:  
+	//	accessToken
+	//	title
+	app.get('/api/get_category', function(req, res) {
+		
+		if (req.query.accessToken != req.session.accessToken) {
+			res.json({result: 'failure', reason: 'incorrect access token'});
+			return;
+		}
+		
+		Category.findOne({'title' : req.query.title}, function(err, category) {
+			
+			if(category) {
+				//res.json({'category_id' : category.id});
+				res.json({category_id : category._id});
+				return;
+			}
+			else {
+				
+				var cat = {
+					title : req.query.title	
+				};
+				
+				var newCat = new Category(cat);
+				
+				
+				newCat.save(function(err){
+					console.log('test1');
 
+					if (err == undefined || err === null || typeof(err) == 'undefined') {
+						console.log(newCat._id);
+						res.json({'category_id' : newCat._id});
+						return;
+					}
+					else {
+						
+						res.json({result : 'failure', reason: 'could not save new category'});
+						return;
+					}
+				});
+				
+			}
+		});
+	});
+	
+	//app.get('/api/create_category/)
+	
+	
 	// =====================================
 	// HOME PAGE (with login links) ========
 	// =====================================
@@ -88,6 +139,38 @@ module.exports = function(app, passport) {
 		
 	});
 	
+	app.get('/api/get_user', function(req, res){
+		if (req.query.accessToken != req.session.accessToken) {
+			res.json({result: 'failure', reason: 'incorrect access token'});
+			return;
+		}
+		
+		BarterUser.findOne({ 'facebook.id' : req.session.facebookId}, function(err, barterUser){
+			if(!barterUser)
+				res.json({ error: true, message: 'no user found'});
+			else
+				res.json(barterUser);
+		});
+	});
+	
+	app.post('/api/get_numbers', function(req, res) {
+		if (req.query.accessToken != req.session.accessToken) {
+			res.json({result: 'failure', reason: 'incorrect access token'});
+		}
+		
+		console.log("started get_numbers. facebook session = " + req.session.facebookId);
+		console.log("req.session.accessToken = " + req.session.accessToken);
+		
+		BarterUser.findOne({ 'facebook.id' : req.session.facebookId}, function(err, barterUser){
+			if(!barterUser)
+				res.json({ error: true, message: 'no user found'});
+			else
+				res.json({	wants: barterUser.wants.length,
+							haves: barterUser.haves.length
+				});
+		});
+	});
+	
 	app.get('/api/get_wants', function(req, res){
 		if (req.query.accessToken != req.session.accessToken) {
 			res.json({result: 'failure', reason: 'incorrect access token'});
@@ -131,28 +214,17 @@ module.exports = function(app, passport) {
 	
 	app.get('/api/add_want', function(req, res){
 		if (req.query.accessToken != req.session.accessToken) {
-			console.log('supplied:' + req.query.accessToken);
-			console.log('stored:' + req.session.accessToken);
 			res.json({result: 'failure', reason: 'incorrect access token'});
 			return;
 		}
 		
-		
-		console.log('req.user = ' + req.user);
-		
 		//get my user
 		BarterUser.findOne({'climbtime.user_id' : req.user.id}, function(err, user){
 			
-			console.log('user.wants.length='+ user.wants.length);
-			for(var i = 0; i != user.wants.length; i++) {
-				if(user.wants[i]._id == req.query.category_id) {
-					res.json({result: 'failure', reason: 'topic already added to wants list'});
-					return;
-				}
-			}
-			console.log('test2');
-			//if(user.wants.indexOf(req.query.category_id) > -1)
-			//	return;
+			
+			
+			if(user.wants.indexOf(req.query.category_id) > -1)
+				return;
 			
 			user.wants.push(req.query.category_id);
 			user.save();
@@ -237,12 +309,14 @@ module.exports = function(app, passport) {
 		res.json({accessToken: req.session.accessToken});
 	  });
 	
+	
 	app.post('/api/login', passport.authenticate('climbtime-login'), 
-	function(req, res) {
-		console.log('req.user = ' + req.user);
-		res.json({accessToken: req.session.accessToken});
-	  });
-
+			function(req, res) {
+				req.session.save();
+				console.log('req.session.facebookId = ' + req.session.facebookId);
+				console.log('req.session.acessToken = ' + req.session.accessToken);
+				res.json({accessToken: req.session.accessToken});
+			  });
 };
 
 // route middleware to make sure a user is logged in

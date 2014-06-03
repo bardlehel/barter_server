@@ -10,24 +10,8 @@ var ObjectId = mongoose.Schema.ObjectId;
 
 // define the schema for our user model
 var userSchema = mongoose.Schema({
-
-    local            : {
-        email        : String,
-        password     : String,
-    },
+	
     facebook         : {
-        id           : String,
-        token        : String,
-        email        : String,
-        name         : String
-    },
-    twitter          : {
-        id           : String,
-        token        : String,
-        displayName  : String,
-        username     : String
-    },
-    google           : {
         id           : String,
         token        : String,
         email        : String,
@@ -38,8 +22,11 @@ var userSchema = mongoose.Schema({
     	email		 : String,
     },
     
-    has : [category.schema],
-	wants: [category.schema]
+    has : [{type: ObjectId, ref: 'category'}],
+	wants: [{type: ObjectId, ref: 'category'}],
+    interests: [{type: ObjectId, ref: 'category'}],
+	creation_date: Date,
+	profile_picture_url: String,
 });
 
 // methods ======================
