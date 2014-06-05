@@ -12,7 +12,7 @@ var configDB = require('./database.js');
 var climbtimeConn = mongoose.createConnection(configDB.climbtime_url).on('error', function (err) {
 	console.log(err);
 });
-var barterConn = mongoose.createConnection(configDB.climbtime_url);
+var barterConn = mongoose.createConnection(configDB.barter_url);
 var User = require('../app/models/user.js')(barterConn);
 var ClimbtimeUser = require('../app/models/climbtimeuser.js')(climbtimeConn);
 
@@ -59,13 +59,13 @@ module.exports = function(passport) {
             // if no user is found, create the user
             if (!user) {
             	user = new User();
-            	user.facebook.id = facebookId;
-            	user.facebook.token = facebookAccessToken;
+            	user.facebook.id = String(facebookId);
+            	user.facebook.token = String(facebookAccessToken);
             }
             
 			console.log('saving session variables in passport login');
             req.session.accessToken = uuid.v1();
-            req.session.facebookId = facebookId;
+            req.session.facebookId = String(facebookId);
             user.save();
             console.log("facebookid = " + req.session.facebookId);
             

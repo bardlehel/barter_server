@@ -13,14 +13,20 @@ var Category = require('./models/category.js')(climbtimeConn);
 
 module.exports = function(app, passport) {
 	
-	
+	app.get('/api/test', function(req, res){
+		if (req.query.accessToken != req.session.accessToken) {
+			res.json({result: 'failure', reason: 'incorrect access token'});
+		}
+		else
+		    res.json({facebookId: req.session.facebookId, accessToken: req.session.accessToken});
+	});
+
 	//finds category id and returns it in json format or
 	//adds the category if does not exist
 	//params:  
 	//	accessToken
 	//	title
 	app.get('/api/get_category', function(req, res) {
-		
 		if (req.query.accessToken != req.session.accessToken) {
 			res.json({result: 'failure', reason: 'incorrect access token'});
 			return;
@@ -130,7 +136,7 @@ module.exports = function(app, passport) {
 		console.log('req.isAuthenticated = ' + req.isAuthenticated());
 		console.log('req.session = '+ req.session);
 		
-		BarterUser.findOne({ 'climbtime.user_id' : req.query.user_id}, function(err, user){
+		BarterUser.findOne({ 'facebook.user_id' : req.query.user_id}, function(err, user){
 			if(!user)
 				res.json({ message: 'no user found'});
 			else
@@ -154,20 +160,32 @@ module.exports = function(app, passport) {
 	});
 	
 	app.post('/api/get_numbers', function(req, res) {
-		if (req.query.accessToken != req.session.accessToken) {
+		//why does req.query work for android task and not for req.body	
+		/*if (req.query.accessToken != req.session.accessToken) {
 			res.json({result: 'failure', reason: 'incorrect access token'});
-		}
+			return;
+		}*/
 		
-		console.log("started get_numbers. facebook session = " + req.session.facebookId);
-		console.log("req.session.accessToken = " + req.session.accessToken);
+		console.log('req.session.facebookId = ' + req.session.facebookId);
+		console.log('req.session.accessToken = ' + req.session.accessToken);
 		
 		BarterUser.findOne({ 'facebook.id' : req.session.facebookId}, function(err, barterUser){
+			var wantsLength = 0;
+			var havesLength = 0;			
+
 			if(!barterUser)
 				res.json({ error: true, message: 'no user found'});
-			else
-				res.json({	wants: barterUser.wants.length,
-							haves: barterUser.haves.length
+			else {
+				
+				if(typeof barterUser.wants != 'undefined')
+					wantsLength = barterUser.wants.length;
+				if(typeof barterUser.haves != 'undefined')
+					havesLength = barterUser.haves.length;
+
+				res.json({	wants: wantsLength,
+						haves: havesLength
 				});
+			}
 		});
 	});
 	
@@ -312,10 +330,11 @@ module.exports = function(app, passport) {
 	
 	app.post('/api/login', passport.authenticate('climbtime-login'), 
 			function(req, res) {
-				req.session.save();
 				console.log('req.session.facebookId = ' + req.session.facebookId);
-				console.log('req.session.acessToken = ' + req.session.accessToken);
-				res.json({accessToken: req.session.accessToken});
+				console.log('req.session.accessToken = ' + req.session.accessToken);
+				res.json({accessToken: req.session.accessToken, facebookId: req.session.facebookId});
+				req.session.facebookId = '579417488841227';
+				//req.session.save();
 			  });
 };
 
