@@ -125,10 +125,10 @@ module.exports = function(app, passport) {
 	
 	
 	
-	app.get('/api/get_has', function(req, res){
+	app.post('/api/get_haves', function(req, res){
 		
-		if (req.query.accessToken != req.session.accessToken) {
-			res.json({result: 'failure', reason: 'incorrect access token'});
+		if (req.body.accessToken != req.session.accessToken) {
+			res.json({result: 'failure', reason: 'session.accessToken = ' + req.session.accessToken + " req.query.accessToken = " + req.query.accessToken});
 			return;
 		}
 		
@@ -145,7 +145,7 @@ module.exports = function(app, passport) {
 		
 	});
 	
-	app.get('/api/get_user', function(req, res){
+	app.post('/api/get_user', function(req, res){
 		if (req.query.accessToken != req.session.accessToken) {
 			res.json({result: 'failure', reason: 'incorrect access token'});
 			return;
@@ -189,7 +189,7 @@ module.exports = function(app, passport) {
 		});
 	});
 	
-	app.get('/api/get_wants', function(req, res){
+	app.post('/api/get_wants', function(req, res){
 		if (req.query.accessToken != req.session.accessToken) {
 			res.json({result: 'failure', reason: 'incorrect access token'});
 			return;

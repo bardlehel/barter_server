@@ -1,5 +1,5 @@
 {
-  "name": "node-authentication",
+  "name": "barter_server",
   "main": "server.js",
   "dependencies": {
     "express": "~3.4.4",
@@ -13,5 +13,24 @@
     "connect-flash": "~0.1.1",
     "bcrypt-nodejs": "latest",
     "express-session": "^1.2.1"
-  }
+  },
+  "scripts": {
+    "start": "node server.js"
+  },
+  "version": "0.0.1",
+  "description": "Barter App Server",
+  "devDependencies": {},
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/bardlehel/barter_server.git"
+  },
+  "keywords": [
+    "barter"
+  ],
+  "author": "Lehel Kovach",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/bardlehel/barter_server/issues"
+  },
+  "homepage": "https://github.com/bardlehel/barter_server"
 }
