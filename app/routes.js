@@ -1,74 +1,250 @@
 // app/routes.js
-var User = require('./models/user.js');
 var mongoose = require('mongoose');
 var configDB = require('../config/database.js');
 var barterConn = mongoose.createConnection(configDB.barter_url);
 var climbtimeConn = mongoose.createConnection(configDB.climbtime_url);
+var User = require('./models/user.js')(climbtimeConn);
 var BarterUser = require('./models/user.js')(barterConn);
 var Category = require('./models/category.js')(climbtimeConn);
-
-
+var utils = require('utils.js');
 
 
 
 module.exports = function(app, passport) {
 	
-	app.get('/api/test', function(req, res){
-		if (req.query.accessToken != req.session.accessToken) {
-			res.json({result: 'failure', reason: 'incorrect access token'});
-		}
-		else
-		    res.json({facebookId: req.session.facebookId, accessToken: req.session.accessToken});
-	});
+	//REST API ROUTES
 
-	//finds category id and returns it in json format or
-	//adds the category if does not exist
-	//params:  
+	app.post('/api/login', passport.authenticate('climbtime-login'), 
+			function(req, res) {
+				console.log('req.session.facebookId = ' + req.session.facebookId);
+				console.log('req.session.accessToken = ' + req.session.accessToken);
+				res.json({
+					accessToken: req.session.accessToken, 
+					facebookId: req.session.facebookId});
+				req.session.facebookId = '579417488841227';
+				//req.session.save();
+			  });
+	};
+
+
+	//api/get_category: finds category id and returns it in json format or
+	//	adds the category if does not exist
+	//request.params:  
 	//	accessToken
 	//	title
-	app.get('/api/get_category', function(req, res) {
-		if (req.query.accessToken != req.session.accessToken) {
-			res.json({result: 'failure', reason: 'incorrect access token'});
-			return;
-		}
+	app.get('/api/get_category', function(request, result) {
 		
+		if(!utils.hasRouteAccess(request.query.accessToken, request, result)) return;
+		if(!utils.hasParameters(request, ['title'])) return;
+		
+		//look up category by title
 		Category.findOne({'title' : req.query.title}, function(err, category) {
 			
+			//category found; return the category's id
 			if(category) {
-				//res.json({'category_id' : category.id});
-				res.json({category_id : category._id});
+				result.json({category_id : category._id});
 				return;
 			}
-			else {
-				
-				var cat = {
-					title : req.query.title	
-				};
-				
-				var newCat = new Category(cat);
-				
-				
-				newCat.save(function(err){
-					console.log('test1');
+			
+			//since there is no category found, create the category
+			var newCategory = new Category({title: request.query.title});
+			//try to save the category and return it's ID
+			newCategory.save(function(error){
 
-					if (err == undefined || err === null || typeof(err) == 'undefined') {
-						console.log(newCat._id);
-						res.json({'category_id' : newCat._id});
-						return;
-					}
-					else {
-						
-						res.json({result : 'failure', reason: 'could not save new category'});
-						return;
-					}
-				});
-				
-			}
+				if (utils.unset(error)) {
+					result.json({category_id : newCategory._id});
+					return;
+				}
+					
+				result.json({result : 'failure', reason: 'could not save new category'});
+			});
 		});
 	});
 	
 	//app.get('/api/create_category/)
 	
+		
+	//api/get_haves: gets the list of 'haves' from user and returns it to user
+	//query params:
+	//	accessToken: token received from /api/login
+	app.get('/api/get_haves', function(request, response){
+		if(!utils.hasRouteAccess(request.query.accessToken, request, response)) return;
+		
+		BarterUser.findOne({'facebook.id' : request.session.facebookId}, function(error, user){
+			if(!user) response.json({ message: 'no user found'});
+			else response.json(user.has);
+		});
+	});
+	
+
+	//api/get_wants: gets the list of 'wants' from user
+	//query params:
+	//	accessToken: token received from /api/login	
+	app.get('/api/get_wants', function(request, response){	
+		if(!utils.hasRouteAccess(request.query.accessToken, request, response)) return;
+		
+		BarterUser.findOne({ 'facebook.id' : request.session.facebookId}, function(error, user){
+			if(!user) response.json({ message: 'no user found'});
+			else response.json(user.wants);
+		});
+	});
+
+	//api/get_user: gets the user's data
+	//remarks: uses facebook id from session
+	//query params:
+	//	accessToken: token received from /api/login
+	app.get('/api/get_user', function(request, response){	
+		if(!utils.hasRouteAccess(request.query.accessToken, request, response)) return;
+		
+		BarterUser.findOne({'facebook.id' : req.session.facebookId}, function(err, barterUser){
+			if(!barterUser) res.json({ error: true, message: 'no user found'});
+			else res.json(barterUser);
+		});
+	});
+	
+	//api/get_numbers: gets the number of wants and haves for user
+	//query params:
+	//	accessToken: token received from api/login
+	app.get('/api/get_numbers', function(request, response) {
+		if(!utils.hasRouteAccess(request.query.accessToken, request, response)) return;
+		
+		BarterUser.findOne({ 'facebook.id' : req.session.facebookId}, function(error, barterUser){
+			var wantsLength = 0;
+			var havesLength = 0;			
+
+			if(!barterUser) {
+				res.json({ error: true, message: 'no user found'});
+				return;
+			}
+			
+			//get the number of wants and haves	
+			if(typeof barterUser.wants != 'undefined')
+				wantsLength = barterUser.wants.length;
+			if(typeof barterUser.haves != 'undefined')
+				havesLength = barterUser.haves.length;
+			
+			res.json({
+				wants: wantsLength,
+				haves: havesLength
+			});
+			
+		});
+	});
+
+	
+	//api/autocomplete_topic: gets topic/category auto-completed titles  from string 
+	//query params:
+	//	title: string to lookup parts of category titles
+	app.get('/api/autocomplete_topic', function(request, response){
+		
+		Category.findOne({title: new RegExp('^'+ req.query.title +'$', "i")}, function(error, category) {
+			response.json(category);
+		});
+	});
+	
+	//api/get_topic_by_title:  returns a topic from category collection, or new category if not found
+	//query params:
+	//	accessToken: token received from api/login
+	//	title: title of the topic/category
+	app.get('/api/get_topic_by_title', function(request, response) {
+		if(!utils.hasRouteAccess(request.query.accessToken, request, response)) return;
+		
+		Category.findOne({title: request.query.title}, function(error, category) {
+			
+			if(!category) {
+				//create new category if category doesn't exist 
+				category = new Category({title: request.query.title});
+				category.save();
+			}
+			
+			response.json(category);
+		});
+	});
+	
+	//api/add_want: adds a 'want' to the list of 'wants' of the user
+	//query params:
+	//	accessToken: token received from api/login
+	//	category_id: id of the topic/category to be added to 'wants' list
+	app.post('/api/add_want', function(request, response) {	
+		if(!utils.hasRouteAccess(request.query.accessToken, request, response)) return;
+		
+		BarterUser.findOne({'facebook.id' : req.session.facebookId}, function(error, user){
+			//don't duplicate
+			if(user.hasWant(req.query.category_id)) return;
+			
+			user.wants.push(req.query.category_id);
+			user.save();
+			
+			res.json({result: 'success'});
+		});
+	});
+	
+	app.post('/api/add_has', function(req, res){
+		if (req.query.accessToken != req.session.accessToken) {
+			res.json({result: 'failure', reason: 'incorrect access token'});
+		}
+		
+		//get my user
+		BarterUser.findOne({'climbtime.user_id' : req.user.id}, function(err, barterUser){
+			
+			if(barterUser.has.indexOf(req.query.category_id) > -1)
+				return;
+			
+			barterUser.has.push(req.query.category_id);
+			barterUser.save();
+		});
+	});
+	
+	app.delete('/api/remove_want', function(req, res){
+		if (req.query.accessToken != req.session.accessToken) {
+			res.json({result: 'failure', reason: 'incorrect access token'});
+		}
+		
+		//get my user
+		BarterUser.findOne({'climbtime.user_id' : req.user.climbtime.id}, function(err, barterUser){
+			barterUser.wants.remove(req.query.category_id);
+			barterUser.save();
+		});
+	});
+	
+	app.delete('/api/remove_has', function(req, res){
+		if (req.query.accessToken != req.session.accessToken) {
+			res.json({result: 'failure', reason: 'incorrect access token'});
+		}
+		
+		//get my user
+		BarterUser.findOne({'climbtime.user_id' : req.user.climbtime.id}, function(err, barterUser){
+			barterUser.has.remove(req.query.category_id);
+			barterUser.save();
+		});
+	});
+	
+	app.get('/api/get_users_who_have', function(req, res){
+		if (req.query.accessToken != req.session.accessToken) {
+			res.json({result: 'failure', reason: 'incorrect access token'});
+		}
+		
+		//get my user
+		BarterUser.find({has : req.query.category_id}, function(err, users){
+			res.json(users);
+		});
+	});
+	
+	app.get('/api/get_users_who_want', isLoggedIn, function(req, res){
+		if (req.query.accessToken != req.session.accessToken) {
+			res.json({result: 'failure', reason: 'incorrect access token'});
+			return;
+		}
+		
+		//get my user
+		BarterUser.find({wants : req.query.category_id}, function(err, users){
+			res.json(users);
+		});
+	});
+
+
+
+	//WEBSITE ROUTES
 	
 	// =====================================
 	// HOME PAGE (with login links) ========
@@ -121,200 +297,7 @@ module.exports = function(app, passport) {
 		req.logout();
 		res.redirect('/');
 	});
-	
-	
-	
-	
-	app.post('/api/get_haves', function(req, res){
-		
-		if (req.body.accessToken != req.session.accessToken) {
-			res.json({result: 'failure', reason: 'session.accessToken = ' + req.session.accessToken + " req.query.accessToken = " + req.query.accessToken});
-			return;
-		}
-		
-		console.log('req.user = ' + req.user);
-		console.log('req.isAuthenticated = ' + req.isAuthenticated());
-		console.log('req.session = '+ req.session);
-		
-		BarterUser.findOne({ 'facebook.user_id' : req.query.user_id}, function(err, user){
-			if(!user)
-				res.json({ message: 'no user found'});
-			else
-				res.json(user.has);
-		});
-		
-	});
-	
-	app.post('/api/get_user', function(req, res){
-		if (req.query.accessToken != req.session.accessToken) {
-			res.json({result: 'failure', reason: 'incorrect access token'});
-			return;
-		}
-		
-		BarterUser.findOne({ 'facebook.id' : req.session.facebookId}, function(err, barterUser){
-			if(!barterUser)
-				res.json({ error: true, message: 'no user found'});
-			else
-				res.json(barterUser);
-		});
-	});
-	
-	app.post('/api/get_numbers', function(req, res) {
-		//why does req.query work for android task and not for req.body	
-		/*if (req.query.accessToken != req.session.accessToken) {
-			res.json({result: 'failure', reason: 'incorrect access token'});
-			return;
-		}*/
-		
-		console.log('req.session.facebookId = ' + req.session.facebookId);
-		console.log('req.session.accessToken = ' + req.session.accessToken);
-		
-		BarterUser.findOne({ 'facebook.id' : req.session.facebookId}, function(err, barterUser){
-			var wantsLength = 0;
-			var havesLength = 0;			
 
-			if(!barterUser)
-				res.json({ error: true, message: 'no user found'});
-			else {
-				
-				if(typeof barterUser.wants != 'undefined')
-					wantsLength = barterUser.wants.length;
-				if(typeof barterUser.haves != 'undefined')
-					havesLength = barterUser.haves.length;
-
-				res.json({	wants: wantsLength,
-						haves: havesLength
-				});
-			}
-		});
-	});
-	
-	app.post('/api/get_wants', function(req, res){
-		if (req.query.accessToken != req.session.accessToken) {
-			res.json({result: 'failure', reason: 'incorrect access token'});
-			return;
-		}
-		
-		BarterUser.findOne({ 'climbtime.user_id' : req.query.user_id}, function(err, barterUser){
-			if(!barterUser)
-				res.json({ message: 'no user found'});
-			else
-				res.json(barterUser.wants);
-		});
-	});
-	
-	app.get('/api/autocomplete_topic', function(req, res){
-		if (req.query.accessToken != req.session.accessToken) {
-			res.json({result: 'failure', reason: 'incorrect access token'});
-			return;
-		}
-		
-		Category.findOne({title: new RegExp('^'+ req.query.title +'$', "i")}, function(err, category) {
-			res.json(category);
-		});
-	});
-	
-	app.get('/api/get_topic_by_title', function(req, res){
-		if (req.query.accessToken != req.session.accessToken) {
-			res.json({result: 'failure', reason: 'incorrect access token'});
-			return;
-		}
-		
-		Category.findOne({title: req.query.title}, function(err, category) {
-			
-			if(!category) {//create it 
-				category = new Category({title: req.query.title});
-				category.save();
-			}
-			res.json(category);
-		});
-	});
-	
-	app.get('/api/add_want', function(req, res){
-		if (req.query.accessToken != req.session.accessToken) {
-			res.json({result: 'failure', reason: 'incorrect access token'});
-			return;
-		}
-		
-		//get my user
-		BarterUser.findOne({'climbtime.user_id' : req.user.id}, function(err, user){
-			
-			
-			
-			if(user.wants.indexOf(req.query.category_id) > -1)
-				return;
-			
-			user.wants.push(req.query.category_id);
-			user.save();
-			
-			res.json({result: 'success'});
-			
-		});
-	});
-	
-	app.get('/api/add_has', function(req, res){
-		if (req.query.accessToken != req.session.accessToken) {
-			res.json({result: 'failure', reason: 'incorrect access token'});
-		}
-		
-		//get my user
-		BarterUser.findOne({'climbtime.user_id' : req.user.id}, function(err, barterUser){
-			
-			if(barterUser.has.indexOf(req.query.category_id) > -1)
-				return;
-			
-			barterUser.has.push(req.query.category_id);
-			barterUser.save();
-		});
-	});
-	
-	app.post('/api/remove_want', function(req, res){
-		if (req.query.accessToken != req.session.accessToken) {
-			res.json({result: 'failure', reason: 'incorrect access token'});
-		}
-		
-		//get my user
-		BarterUser.findOne({'climbtime.user_id' : req.user.climbtime.id}, function(err, barterUser){
-			barterUser.wants.remove(req.query.category_id);
-			barterUser.save();
-		});
-	});
-	
-	app.post('/api/remove_has', function(req, res){
-		if (req.query.accessToken != req.session.accessToken) {
-			res.json({result: 'failure', reason: 'incorrect access token'});
-		}
-		
-		//get my user
-		BarterUser.findOne({'climbtime.user_id' : req.user.climbtime.id}, function(err, barterUser){
-			barterUser.has.remove(req.query.category_id);
-			barterUser.save();
-		});
-	});
-	
-	app.get('/api/get_users_who_have', function(req, res){
-		if (req.query.accessToken != req.session.accessToken) {
-			res.json({result: 'failure', reason: 'incorrect access token'});
-		}
-		
-		//get my user
-		BarterUser.find({has : req.query.category_id}, function(err, users){
-			res.json(users);
-		});
-	});
-	
-	app.get('/api/get_users_who_want', isLoggedIn, function(req, res){
-		if (req.query.accessToken != req.session.accessToken) {
-			res.json({result: 'failure', reason: 'incorrect access token'});
-			return;
-		}
-		
-		//get my user
-		BarterUser.find({wants : req.query.category_id}, function(err, users){
-			res.json(users);
-		});
-	});
-	
 	// process the signup form
 	app.post('/signup', passport.authenticate('local-signup', {
 		successRedirect : '/profile', // redirect to the secure profile section
@@ -328,23 +311,6 @@ module.exports = function(app, passport) {
 	  });
 	
 	
-	app.post('/api/login', passport.authenticate('climbtime-login'), 
-			function(req, res) {
-				console.log('req.session.facebookId = ' + req.session.facebookId);
-				console.log('req.session.accessToken = ' + req.session.accessToken);
-				res.json({accessToken: req.session.accessToken, facebookId: req.session.facebookId});
-				req.session.facebookId = '579417488841227';
-				//req.session.save();
-			  });
-};
 
-// route middleware to make sure a user is logged in
-function isLoggedIn(req, res, next) {
 
-	// if user is authenticated in the session, carry on 
-	if (req.isAuthenticated())
-		return next();
 
-	// if they aren't redirect them to the home page
-	res.redirect('/');
-}
