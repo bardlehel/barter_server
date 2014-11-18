@@ -6,6 +6,7 @@ var climbtimeConn = mongoose.createConnection(configDB.climbtime_url);
 var User = require('./models/user.js')(climbtimeConn);
 var BarterUser = require('./models/user.js')(barterConn);
 var Category = require('./models/category.js')(climbtimeConn);
+var restClient = 
 var utils = require('utils.js');
 
 
@@ -14,14 +15,14 @@ module.exports = function(app, passport) {
 	
 	//REST API ROUTES
 
-	app.post('/api/login', passport.authenticate('climbtime-login'), 
-			function(req, res) {
-				console.log('req.session.facebookId = ' + req.session.facebookId);
-				console.log('req.session.accessToken = ' + req.session.accessToken);
-				res.json({
+
+	app.post('/api/login', function(request, response) {
+				console.log('req.body.facebookId = ' + req.body.facebookId);
+				console.log('req.body.accessToken = ' + req.body.accessToken);
+				response.json({
 					accessToken: req.session.accessToken, 
 					facebookId: req.session.facebookId});
-				req.session.facebookId = '579417488841227';
+				request.session.facebookId = '579417488841227';
 				//req.session.save();
 			  });
 	};
