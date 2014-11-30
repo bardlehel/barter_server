@@ -10,19 +10,9 @@ var category = require('./category.js')(conn);
 var ObjectId = mongoose.Schema.ObjectId;
 
 // define the schema for our user model
+
 var userSchema = mongoose.Schema({
-	
-    facebook         : {
-        id           : String,
-        token        : String,
-        email        : String,
-        name         : String
-    },
-    climbtime		 : {
-    	id			 : ObjectId,
-    	email		 : String
-    },
-    
+    climbtime_id: ObjectId,
     has : [{type: ObjectId, ref: 'category'}],
 	wants: [{type: ObjectId, ref: 'category'}],
     interests: [{type: ObjectId, ref: 'category'}],

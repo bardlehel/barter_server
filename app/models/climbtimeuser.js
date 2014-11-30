@@ -4,7 +4,20 @@
 var mongoose = require('mongoose');
 var dbConfig = require('../../config/database.js');
 
-var user = mongoose.Schema({
+var User = mongoose.Schema({
+    //_id : the user id
+    facebook         : {
+        userId       : String,
+        token        : String,
+    },
+    climbtime		 : {
+        email		 : String,
+        password     : String
+    },
+    
+    access_token: String,
+    access_token_date: Date,
+    
 	username : String,
 	first_name : String,
 	last_name : String,
@@ -14,7 +27,8 @@ var user = mongoose.Schema({
 	is_active : Boolean,
 	is_superuser : Boolean,
 	last_login : Date,
-	date_joined : Date//,
+    date_joined : Date,
+    points_earned : Number
 	//user_permissions : [{type : ObjectId, ref: 'Permission'}]
 });
 
@@ -27,6 +41,6 @@ var Permission = mongoose.Schema({
 
 
 module.exports = function(dbconn) {
-	return dbconn.model('user', user, 'user');
+	return dbconn.model('User', User, 'User');
 };
 

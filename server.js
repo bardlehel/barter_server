@@ -5,8 +5,6 @@
 var express  = require('express');
 var app      = express();
 var port     = process.env.PORT || 8082;
-var mongoose = require('mongoose');
-var mongoose_ct = require('mongoose');
 var passport = require('passport');
 var flash 	 = require('connect-flash');
 var bcrypt	 = require('bcrypt-nodejs');
@@ -27,8 +25,16 @@ var LocalStrategy = require('passport-local').Strategy;
 //app.use(express.logger('dev')); // log every request to the console
 app.set('view engine', 'ejs'); // set up ejs for templating
 app.use(cookieParser());
-app.use(bodyParser());
-app.use(session({ secret: 'asfdfasdf234e23432' }));
+app.use(bodyParser.json());
+app.use(bodyParser.urlencoded({ extended: true }));
+app.use(session({
+            secret: 'asfdfasdf234e23432',
+            //name: cookie_name,
+            //store: sessionStore, // connect-mongo session store
+            //proxy: true,
+            resave: true,
+            saveUninitialized: true
+    }));
 app.use(passport.initialize());
 //app.use(passport.session());
 app.use(cors());
