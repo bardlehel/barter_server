@@ -20,7 +20,8 @@
     "passport-local": "^0.1.6",
     "passport-twitter": "~1.0.2",
     "should": "^4.3.0",
-    "supertest": "^0.15.0"
+    "supertest": "^0.15.0",
+    "request": "^2.49.0"
   },
   "scripts": {
     "start": "node server.js"

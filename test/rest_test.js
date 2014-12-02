@@ -29,7 +29,7 @@
  * 
  */
 
-
+var server = require('../server.js');
 var assert = require("assert"); // node.js core module
 var request = require('supertest'); //used for http calls for REST
 var should = require("should");
@@ -40,62 +40,68 @@ var configDB = require('../config/database.js');
 var barterConn = '';
 var climbtimeConn = '';
 var ClimbtimeUser = null;
-var facebookToken = "CAADs8OVZALMEBAKXnsGya3zNLZAKdQ9xgUxHt0WstaWczyycTzsHZAohbqZBN79VR6yml9AX2DohlaLgOOHcRCavBrBnGt4WHTJNewYv2WqGjERtE39ZB914664MTI9NuBSlq6dnE8bwuvGxLF5psYjUzQdZCZA7OqvOMm5h56ZAE7PbOgW9DV6pWlhHzDFZB1gQj1ZBEbZBG4wrj9NKoLJ0ZAfb3l5uaLbbIyQZD";
+var facebookToken = "CAADs8OVZALMEBAAEp9CqFoNufCEFpVCCVe0V4Skk4zKiNtsg3egdIcSA5gwSP8FVuiMlfSl6V1ERvFR4b4vU4ARSEb7JQw3i5dwf4a1upJPiZCFB6yUcWdhJBeiHldYLznvRMbZBEWMicaDpQNZBHZCRn0KlGQpq7o69O3EgPuWKMvZB428VN6VD31jC42XT2HSJh8Waw5elCdXIrKTaux";
 var facebookId = "579417488841227";
+var http = require('http');
 
 describe('REST', function () {
-    /*
+
     before(function (done) {
         // In our tests we use the test db
         // barterConn = mongoose.createConnection(configDB.barter_url);
         climbtimeConn = mongoose.createConnection(configDB.climbtime_url);
         ClimbtimeUser = require("../app/models/user.js")(climbtimeConn);
+
+        request = request('http://localhost:8082');
+
         done();
     });
-    */
+
     describe('get_access_token', function () {
-        
         it('should get a 200 back', function (done) {
-            request(app)
+            request
                 .get('/')
                 .expect(200, done);
         });
-        
+
         it('should return a token when passing in facebook token', function (done) {
-  
-                request(app)
+
+                request
                 .get('/api/get_access_token?facebook-token=' + facebookToken + '&facebook-id=' + facebookId)
-                .set('Accept', 'application/json')
-                .expect(200)
+                    .set('Accept', 'application/json')
+                    .expect('Content-Type', /json/)
+                    .expect(200)
                 .end(function (err, res) {
-                    done();
                     if (err) return done(err);
-                    
-                    res.body.should.have.property('accessToken');
+
+                    res.body.should.have.property('access-token');
                     //get access token from db and check value
-                    ClimbtimeUser.findOne({ 'access_token' : res.body.accessToken }, function (error, user) {
-                        if (!user) done(error);
-                        res.body.accessToken.should.equal(user.access_token);
+                    ClimbtimeUser.findOne({ 'access_token' : res.body['access-token'] }, function (error, user) {
+                        if (!user) return done(error);
+
+                        res.body['access-token'].should.equal(user.access_token);
                         facebookId.should.equal(user.facebook.userId);
+                        console.log(res.body['access-token']);
                         done();
                     });
              
                 });
              
         })
-        /*
+
         it('should return an error if facebook token is invalid', function (done) {
             var invalidFacebookToken = '111';
-            request(app)
-                .get('/api/get_access_token?facebook-token=' + facebookToken + '&facebook-id=' + invalidFacebookToken)
+            request
+                .get('/api/get_access_token?facebook-token=' + invalidFacebookToken + '&facebook-id=' + facebookId)
                 .set('Accept', 'application/json')
+                .expect('Content-Type', /json/)
                 .expect(200)
                 .end(function (err, res) {
                     if (err) return done(err);    
-                    res.body.should.have.property('error');
+                    res.body.should.have.property('error:');
                     done();
                });
         })
-         * */
+
     })
 })

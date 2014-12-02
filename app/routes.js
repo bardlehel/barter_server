@@ -14,6 +14,7 @@ var uuid = require('node-uuid');
 
 
 
+
 module.exports = function (app, passport) {
     
     //REST API ROUTES
@@ -26,64 +27,74 @@ module.exports = function (app, passport) {
     //  returns json:
     //      accessToken: the newly generated token for this facebook user    
     app.get('/api/get_access_token', function (request, response) {
-        
         //check if facebook-token is in barter database (user collection) already
         //if it exists, send back the user an accesstoken and set that to the session.
         //if no user exists for that facebook token, validate it with facebook and create a new token
         var url = 'https://graph.facebook.com/me?fields=id&access_token=' 
             + request.query["facebook-token"];
-        
-        restClient.get(url, function (data, res) {
-            // parsed response body as js object
-            console.log(data);
+
+        restClient.get(url,  function (data, res) {
+            data = JSON.parse(data);
+            if(data == undefined) {
+                response.json({error : 'no json object to parse'});
+            }
+            if(data.error !== undefined) {
+                response.json({'error:': data.error});
+                return;
+            }
+
             //if facebook returns valid user (matches facebook id sent)
             if (data.id == request.query["facebook-id"]) {
                 //see if we can find a Climbtime user with that facebook token
                 User.findOne({ 'facebook.token' : request.query['facebook-token'] }, function (error, user) {
-                    if (user) response.json({ 'error:' : error });
-                    
-                    if (unset(user.access_token) || unset(user.access_token_date))
-                        response.json({ 'error:' : error });
-                    
-                    var date = new Date();
-                    var token_date = new Date(user.access_token_date);
-                    if (token_date == null) response.json({ 'error' : 'could not create token date object' });
-                    
-                    //if access token is valid and date of token less than 60 minutes, save and return it
-                    if (user.access_token.length == uuid.v1().length 
-                        && token_date.getTime() + 60 * 60000 > date.getTime()) {
-                        request.session.accessToken = user.access_token;
-                        response.json({ 'access-token' : user.access_token });
+                    if (!user) {
+                        //create the uuid for the accesstoken and put it in the session and user collection
+                        request.session.accessToken = uuid.v1();
+
+                        var newUser = new User({
+                            'access_token' : request.session.accessToken,
+                            'access_token_date' : new Date()
+                        });
+
+                        newUser.save(function (err, user) {
+                            if(err) {
+                                response.json({error : 'cannot save new climbtime user'});
+                                return;
+                            }
+
+                            request.session.climbtimeId = user._id;
+                            request.session.save();
+                            response.json({ 'access-token' : request.session.accessToken });
+                            return;
+                        });
+                    }
+                    else if (unset(user.access_token) || unset(user.access_token_date)) {
+                        response.json({'error:': error});
+                        return;
+                    }
+                    else {
+                        var date = new Date();
+                        var token_date = new Date(user.access_token_date);
+                        if (token_date == null) {
+                            response.json({'error': 'could not create token date object'});
+                            return;
+                        }
+
+                        //if access token is valid and date of token less than 60 minutes, save and return it
+                        if (user.access_token.length == uuid.v1().length
+                            && token_date.getTime() + 60 * 60000 > date.getTime()) {
+                            request.session.accessToken = user.access_token;
+                            request.session.save();
+                            response.json({'access-token': user.access_token});
+                            return;
+                        }
                     }
                 });
-                
-                //create the uuid for the accesstoken and put it in the session and user collection
-                request.session.accessToken = uuid.v1();
-                
-                var newUser = new User({
-                    'access_token' : request.session.accessToken,
-                    'access_token_date' : new Date()
-                });
-                
-                newUser.save(function (err, user) {
-                    request.session.climbtimeId = user._id;
-                    response.json({ 'access-token' : request.session.accessToken });
-                });
-
             }
         }).on('error', function (err) {
                 console.log('something went wrong on the request', err.request.options);
                 response.json({ 'error' : err });
             });
-        
-        console.log('req.query.facebookId = ' + request.query.facebookId);
-        console.log('req.query.facebook-token = ' + request.query.facebook - token);
-        response.json({
-            accessToken: request.session.accessToken, 
-            facebookId: reqiest.session.facebookId
-        });
-				
-				//req.session.save();
     });
     
     
