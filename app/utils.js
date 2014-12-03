@@ -5,20 +5,26 @@ module.exports.unset = function (variable) {
 }
 
 module.exports.hasRouteAccess = function (accessToken, request, response) {
-    if (unset(accessToken)) throw 'accessToken not set';
-    if (unset(request.session.accessToken)) throw 'session has no accessToken';
-    
+    if (module.exports.unset(accessToken)) {
+        response.json({ error: 'no access token supplied' });
+        return false;
+    }
+    if (module.exports.unset(request.session.accessToken)) {
+        response.json({ error: 'no session data for access token' })
+        return false;
+    }
+
     if (request.session.accessToken != accessToken) {
-        response.json({ result: 'failure', reason: 'incorrect access token' });
-        return true;
+        response.json({ error: 'incorrect access token' });
+        return false;
     }
     
-    return false;
+    return true;
 }
 
 module.exports.hasParameters = function (request, params) {
     for (var i = 0; i < params.length; i++) {
-        if (unset(request.query[params[i]])){
+        if (module.exports.unset(request.query[params[i]])){
             return false;
         }
     }

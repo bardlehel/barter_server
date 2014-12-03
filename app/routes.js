@@ -64,7 +64,7 @@ module.exports = function (app, passport) {
 
                             request.session.climbtimeId = user._id;
                             request.session.save();
-                            response.json({ 'access-token' : request.session.accessToken });
+                            response.json({ 'accessToken' : request.session.accessToken });
                             return;
                         });
                     }
@@ -85,7 +85,7 @@ module.exports = function (app, passport) {
                             && token_date.getTime() + 60 * 60000 > date.getTime()) {
                             request.session.accessToken = user.access_token;
                             request.session.save();
-                            response.json({'access-token': user.access_token});
+                            response.json({'accessToken': user.access_token});
                             return;
                         }
                     }
@@ -96,16 +96,39 @@ module.exports = function (app, passport) {
                 response.json({ 'error' : err });
             });
     });
-    
-    
+
+    ////CLIMBTIME API
+
+    //api/add_category: creates a new user-defined category into the climbtime database
+    //  query params:
+    //      access-token:  token received from api/get_access_token
+    //      title:    title of new category
+    //  returns json: object containing category data
+    app.get('/api/add_category', function(request, response){
+        if (!utils.hasRouteAccess(request.query.accessToken, request, response)) return response.json({error: 'bad access token'});
+        if (!utils.hasParameters(request, ['title'])) return response.json({error: 'missing parameters'});
+
+        var newCategory = new Category({ title: request.query.title });
+        //try to save the category and return it's ID
+        newCategory.save(function (error) {
+
+            if (utils.unset(error)) {
+                response.json(newCategory);
+                return;
+            }
+
+            response.json({ error: 'could not save new category' });
+        });
+
+    });
     
     //api/get_category: finds category id and returns it in json format or
     //	adds the category if does not exist
     //url params:  
     //	accessToken
     //	title
-    app.get('/api/get_category', function (request, response) {
-        
+    app.get('/api/get_category_by_title', function (request, response) {
+
         if (!utils.hasRouteAccess(request.query.accessToken, request, response)) return;
         if (!utils.hasParameters(request, ['title'])) return;
         
@@ -133,12 +156,12 @@ module.exports = function (app, passport) {
         });
     });
     
-    //app.get('/api/create_category/)
+
     
     
     //api/get_haves: gets the list of 'haves' from user and returns it to user
     //query params:
-    //	accessToken: token received from /api/login
+    //	access-token: token received from /api/get_access_token
     app.get('/api/get_haves', function (request, response) {
         if (!utils.hasRouteAccess(request.query.accessToken, request, response)) return;
         
@@ -151,7 +174,7 @@ module.exports = function (app, passport) {
     
     //api/get_wants: gets the list of 'wants' from user
     //query params:
-    //	accessToken: token received from /api/login	
+    //	access-token: token received from /api/get_acccess_token
     app.get('/api/get_wants', function (request, response) {
         if (!utils.hasRouteAccess(request.query.accessToken, request, response)) return;
         
@@ -164,7 +187,7 @@ module.exports = function (app, passport) {
     //api/get_user: gets the user's data
     //remarks: uses facebook id from session
     //query params:
-    //	accessToken: token received from /api/login
+    //	access-token: token received from /api/get_acccess_token
     app.get('/api/get_user', function (request, response) {
         if (!utils.hasRouteAccess(request.query.accessToken, request, response)) return;
         
@@ -176,7 +199,7 @@ module.exports = function (app, passport) {
     
     //api/get_numbers: gets the number of wants and haves for user
     //query params:
-    //	accessToken: token received from api/login
+    //	access-token: token received from /api/get_acccess_token
     app.get('/api/get_numbers', function (request, response) {
         if (!utils.hasRouteAccess(request.query.accessToken, request, response)) return;
         
@@ -216,7 +239,7 @@ module.exports = function (app, passport) {
     
     //api/get_topic_by_title:  returns a topic from category collection, or new category if not found
     //query params:
-    //	accessToken: token received from api/login
+    //	access-token: token received from /api/get_acccess_token
     //	title: title of the topic/category
     app.get('/api/get_topic_by_title', function (request, response) {
         if (!utils.hasRouteAccess(request.query.accessToken, request, response)) return;
@@ -235,7 +258,7 @@ module.exports = function (app, passport) {
     
     //api/add_want: adds a 'want' to the list of 'wants' of the user
     //query params:
-    //	accessToken: token received from api/login
+    //	access-token: token received from /api/get_acccess_token
     //	category_id: id of the topic/category to be added to 'wants' list
     app.post('/api/add_want', function (request, response) {
         if (!utils.hasRouteAccess(request.query.accessToken, request, response)) return;

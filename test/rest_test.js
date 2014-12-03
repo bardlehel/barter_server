@@ -40,8 +40,9 @@ var configDB = require('../config/database.js');
 var barterConn = '';
 var climbtimeConn = '';
 var ClimbtimeUser = null;
-var facebookToken = "CAADs8OVZALMEBAAEp9CqFoNufCEFpVCCVe0V4Skk4zKiNtsg3egdIcSA5gwSP8FVuiMlfSl6V1ERvFR4b4vU4ARSEb7JQw3i5dwf4a1upJPiZCFB6yUcWdhJBeiHldYLznvRMbZBEWMicaDpQNZBHZCRn0KlGQpq7o69O3EgPuWKMvZB428VN6VD31jC42XT2HSJh8Waw5elCdXIrKTaux";
-var facebookId = "579417488841227";
+var Category = null;
+var facebookToken = "CAADs8OVZALMEBAEDKpSZAx3a9phAEAGvPloEp7KdcoBXAXhdcTHnTkyApdaiLPLO9sYdYHji13CFzXIX54hEHnNr0zth1xBQmQdRAL3RrCcw61xQzwzsu9rFPdzK4b58rNpsmdDQZCzlnScPoDF9KnxnQFoZADpkx5sDQPZBcZCtBysmZCkZBXHYhCKLtBj7Wg9DN7L7ZAXmbvP7FpIoXFrjE";
+var facebookId = "1384707158489078";
 var http = require('http');
 
 describe('REST', function () {
@@ -51,7 +52,7 @@ describe('REST', function () {
         // barterConn = mongoose.createConnection(configDB.barter_url);
         climbtimeConn = mongoose.createConnection(configDB.climbtime_url);
         ClimbtimeUser = require("../app/models/user.js")(climbtimeConn);
-
+        Category = require("../app/models/category.js")(climbtimeConn);
         request = request('http://localhost:8082');
 
         done();
@@ -74,14 +75,13 @@ describe('REST', function () {
                 .end(function (err, res) {
                     if (err) return done(err);
 
-                    res.body.should.have.property('access-token');
+                    res.body.should.have.property('accessToken');
                     //get access token from db and check value
-                    ClimbtimeUser.findOne({ 'access_token' : res.body['access-token'] }, function (error, user) {
+                    ClimbtimeUser.findOne({ 'access_token' : res.body['accessToken'] }, function (error, user) {
                         if (!user) return done(error);
 
-                        res.body['access-token'].should.equal(user.access_token);
+                        res.body['accessToken'].should.equal(user.access_token);
                         facebookId.should.equal(user.facebook.userId);
-                        console.log(res.body['access-token']);
                         done();
                     });
              
@@ -104,4 +104,88 @@ describe('REST', function () {
         })
 
     })
+
+    describe('add_category', function() {
+
+        var categoryTitle = 'Test Title';
+
+        it('should return error if no access token is supplied', function(done){
+            request
+                .get('/api/add_category?title=' + categoryTitle)
+                .set('Accept', 'application/json')
+                .expect('Content-Type', /json/)
+                .expect(200)
+                .end(function (err, res) {
+                    if (err)
+                        return done(err);
+
+                    res.body.should.have.property('error');
+                    done();
+                });
+
+        })
+
+        it('should add category to database', function(done) {
+            var accessToken = '';
+
+            request
+                .get('/api/get_access_token?facebook-token=' + facebookToken + '&facebook-id=' + facebookId)
+                .end(function(error, response){
+                    if(error) done(error);
+
+                    request
+                        .get('/api/add_category?access-token=' + response.body.accessToken + 'title=' + categoryTitle)
+                        .set('Accept', 'application/json')
+                        //.expect('Content-Type', /json/)
+                        .expect(200)
+                        .end(function (err, res) {
+                            if (err) return done(err);
+
+
+                            Category.findOne({ title : categoryTitle }, function (error, user) {
+                                if (!user) return done(error);
+
+                                user.title.should.equal(categoryTitle);
+                                done();
+                            });
+
+                        });
+
+                });
+
+
+        })
+    })
+
+    describe('edit_category', function() {
+        it('should add category to database', function(done){
+
+        })
+    })
+    /*
+    describe('get_category_by_title', function() {
+        it('should add category to database', function(done){
+
+        })
+    })
+
+    describe('add_have', function() {
+        it('should add category to database', function(done){
+
+        })
+    })
+
+    describe('remove_have', function() {
+        it('should', function(done){
+
+        })
+    })
+
+    describe('get_haves', function() {
+        it('should return an array', function(done){
+
+        })
+    })
+
+    */
 })
