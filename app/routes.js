@@ -65,7 +65,7 @@ module.exports = function (app, passport) {
                             request.session.climbtimeId = user._id;
                             request.session.save();
                             response.json({ 'accessToken' : request.session.accessToken });
-                            return;
+
                         });
                     }
                     else if (unset(user.access_token) || unset(user.access_token_date)) {
@@ -105,8 +105,12 @@ module.exports = function (app, passport) {
     //      title:    title of new category
     //  returns json: object containing category data
     app.get('/api/add_category', function(request, response){
-        if (!utils.hasRouteAccess(request.query.accessToken, request, response)) return response.json({error: 'bad access token'});
-        if (!utils.hasParameters(request, ['title'])) return response.json({error: 'missing parameters'});
+        if (!utils.hasRouteAccess(request.query['access-token'], request, response)) return;
+        if (!utils.hasParameters(request, ['title'], response)) return;
+
+        var regex = /["'~`!@#$%^&*()_=+-.]+/g;
+        if (req.query.title.match(regex))  return response.json({ error : 'illegal characters sent to title' });
+
 
         var newCategory = new Category({ title: request.query.title });
         //try to save the category and return it's ID
@@ -122,25 +126,25 @@ module.exports = function (app, passport) {
 
     });
     
-    //api/get_category: finds category id and returns it in json format or
+    //api/get_category_by_title: finds category id and returns it in json format or
     //	adds the category if does not exist
-    //url params:  
+    //url params (req.query):
     //	accessToken
     //	title
     app.get('/api/get_category_by_title', function (request, response) {
 
-        if (!utils.hasRouteAccess(request.query.accessToken, request, response)) return;
-        if (!utils.hasParameters(request, ['title'])) return;
+        if (!utils.hasRouteAccess(request.query.query['access-token'], request, response)) return;
+        if (!utils.hasParameters(request, ['title'], response)) return;
+
+        var regex = /["'~`!@#$%^&*()_=+-.]+/g;
+        if (req.query.title.match(regex))  return response.json({ error : 'illegal characters sent to title' });
         
         //look up category by title
         Category.findOne({ 'title' : req.query.title }, function (err, category) {
             
             //category found; return the category's id
-            if (category) {
-                response.json({ category_id : category._id });
-                return;
-            }
-            
+            if (category) return response.json({ category_id : category._id });
+
             //since there is no category found, create the category
             var newCategory = new Category({ title: request.query.title });
             //try to save the category and return it's ID
@@ -155,6 +159,17 @@ module.exports = function (app, passport) {
             });
         });
     });
+
+    //api/autocomplete_category: gets topic/category auto-completed titles  from string
+    //query params:
+    //	title: string to lookup parts of category titles
+    app.get('/api/autocomplete_category', function (request, response) {
+        if (!utils.hasParameters(request, ['title'], response)) return;
+
+        Category.findOne({ title: new RegExp('^' + req.query.title + '$', "i") }, function (error, category) {
+            response.json(category);
+        });
+    });
     
 
     
@@ -163,20 +178,20 @@ module.exports = function (app, passport) {
     //query params:
     //	access-token: token received from /api/get_access_token
     app.get('/api/get_haves', function (request, response) {
-        if (!utils.hasRouteAccess(request.query.accessToken, request, response)) return;
+        if (!utils.hasRouteAccess(request.query['access-token'], request, response)) return;
         
         BarterUser.findOne({ 'facebook.id' : request.session.facebookId }, function (error, user) {
             if (!user) response.json({ message: 'no user found' });
             else response.json(user.has);
         });
     });
-    
-    
+
+
     //api/get_wants: gets the list of 'wants' from user
     //query params:
     //	access-token: token received from /api/get_acccess_token
     app.get('/api/get_wants', function (request, response) {
-        if (!utils.hasRouteAccess(request.query.accessToken, request, response)) return;
+        if (!utils.hasRouteAccess(request.query['access-token'], request, response)) return;
         
         BarterUser.findOne({ 'facebook.id' : request.session.facebookId }, function (error, user) {
             if (!user) response.json({ message: 'no user found' });
@@ -189,7 +204,7 @@ module.exports = function (app, passport) {
     //query params:
     //	access-token: token received from /api/get_acccess_token
     app.get('/api/get_user', function (request, response) {
-        if (!utils.hasRouteAccess(request.query.accessToken, request, response)) return;
+        if (!utils.hasRouteAccess(request.query['access-token'], request, response)) return;
         
         BarterUser.findOne({ 'facebook.id' : req.session.facebookId }, function (err, barterUser) {
             if (!barterUser) res.json({ error: true, message: 'no user found' });
@@ -227,23 +242,16 @@ module.exports = function (app, passport) {
     });
     
     
-    //api/autocomplete_topic: gets topic/category auto-completed titles  from string 
-    //query params:
-    //	title: string to lookup parts of category titles
-    app.get('/api/autocomplete_topic', function (request, response) {
-        
-        Category.findOne({ title: new RegExp('^' + req.query.title + '$', "i") }, function (error, category) {
-            response.json(category);
-        });
-    });
+
     
     //api/get_topic_by_title:  returns a topic from category collection, or new category if not found
     //query params:
     //	access-token: token received from /api/get_acccess_token
-    //	title: title of the topic/category
+    //	title: title of the topic/concept4
     app.get('/api/get_topic_by_title', function (request, response) {
-        if (!utils.hasRouteAccess(request.query.accessToken, request, response)) return;
-        
+        if (!utils.hasRouteAccess(request.query['access-token'], request, response)) return;
+        if (!utils.hasParameters(request, ['title'], response)) return;
+
         Category.findOne({ title: request.query.title }, function (error, category) {
             
             if (!category) {
@@ -261,8 +269,9 @@ module.exports = function (app, passport) {
     //	access-token: token received from /api/get_acccess_token
     //	category_id: id of the topic/category to be added to 'wants' list
     app.post('/api/add_want', function (request, response) {
-        if (!utils.hasRouteAccess(request.query.accessToken, request, response)) return;
-        
+        if (!utils.hasRouteAccess(request.query['access-token'], request, response)) return;
+        if (!utils.hasParameters(request, ['category_id'], response)) return;
+
         BarterUser.findOne({ 'facebook.id' : req.session.facebookId }, function (error, user) {
             //don't duplicate
             if (user.hasWant(req.query.category_id)) return;
@@ -275,6 +284,9 @@ module.exports = function (app, passport) {
     });
     
     app.post('/api/add_has', function (req, res) {
+        if (!utils.hasRouteAccess(request.query['access-token'], request, response)) return;
+        if (!utils.hasParameters(request, ['category_id'], response)) return;
+
         if (req.query.accessToken != req.session.accessToken) {
             res.json({ result: 'failure', reason: 'incorrect access token' });
         }
@@ -290,26 +302,32 @@ module.exports = function (app, passport) {
         });
     });
     
-    app.delete('/api/remove_want', function (req, res) {
-        if (req.query.accessToken != req.session.accessToken) {
-            res.json({ result: 'failure', reason: 'incorrect access token' });
+    app.delete('/api/remove_want', function (request, response) {
+        if (!utils.hasRouteAccess(request.query['access-token'], request, response)) return;
+        if (!utils.hasParameters(request, ['category_id'], response)) return;
+
+        if (request.query.accessToken != request.session.accessToken) {
+            response.json({ result: 'failure', reason: 'incorrect access token' });
         }
         
         //get my user
-        BarterUser.findOne({ 'climbtime.user_id' : req.user.climbtime.id }, function (err, barterUser) {
-            barterUser.wants.remove(req.query.category_id);
+        BarterUser.findOne({ 'climbtime.user_id' : request.user.climbtime.id }, function (err, barterUser) {
+            barterUser.wants.remove(request.query.category_id);
             barterUser.save();
         });
     });
     
-    app.delete('/api/remove_has', function (req, res) {
-        if (req.query.accessToken != req.session.accessToken) {
-            res.json({ result: 'failure', reason: 'incorrect access token' });
+    app.delete('/api/remove_has', function (request, response) {
+        if (!utils.hasRouteAccess(request.query['access-token'], request, response)) return;
+        if (!utils.hasParameters(request, ['category_id'], response)) return;
+
+        if (request.query.accessToken != request.session.accessToken) {
+            response.json({ result: 'failure', reason: 'incorrect access token' });
         }
         
         //get my user
-        BarterUser.findOne({ 'climbtime.user_id' : req.user.climbtime.id }, function (err, barterUser) {
-            barterUser.has.remove(req.query.category_id);
+        BarterUser.findOne({ 'climbtime.user_id' : request.user.climbtime.id }, function (err, barterUser) {
+            barterUser.has.remove(request.query.category_id);
             barterUser.save();
         });
     });

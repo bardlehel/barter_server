@@ -28,20 +28,20 @@
  *  edit_topic:
  * 
  */
-
-var server = require('../server.js');
-var assert = require("assert"); // node.js core module
 var request = require('supertest'); //used for http calls for REST
+var server = require('../server.js');
+var agent = request.agent(server);
+var assert = require("assert"); // node.js core module
+
 var should = require("should");
 var mongoose = require('mongoose');
 var express = require('express');
 var app = express();
 var configDB = require('../config/database.js');
-var barterConn = '';
 var climbtimeConn = '';
 var ClimbtimeUser = null;
 var Category = null;
-var facebookToken = "CAADs8OVZALMEBAEDKpSZAx3a9phAEAGvPloEp7KdcoBXAXhdcTHnTkyApdaiLPLO9sYdYHji13CFzXIX54hEHnNr0zth1xBQmQdRAL3RrCcw61xQzwzsu9rFPdzK4b58rNpsmdDQZCzlnScPoDF9KnxnQFoZADpkx5sDQPZBcZCtBysmZCkZBXHYhCKLtBj7Wg9DN7L7ZAXmbvP7FpIoXFrjE";
+var facebookToken = "CAADs8OVZALMEBAKiTyzNjDvnIZCpCkA61EoQAzo4oeQA96lbTFiZBZCfOKtyLZADZCvTQBJatjiUZCaT4EjY1MWUMMKvzYa5ZALxSseXww0jRqlfPe8xXdhfZBM259FsTm9yp4srHWLD2X3R2oxGkSbyFbDBTRy3D1I7yzX6y86aZCiLp2eQghEYaJ5GDlLqrPWsDDHKXlQCPoH71ZAFZCdaNotL";
 var facebookId = "1384707158489078";
 var http = require('http');
 
@@ -59,6 +59,8 @@ describe('REST', function () {
     });
 
     describe('get_access_token', function () {
+        this.timeout(15000);
+
         it('should get a 200 back', function (done) {
             request
                 .get('/')
@@ -106,6 +108,7 @@ describe('REST', function () {
     })
 
     describe('add_category', function() {
+        this.timeout(15000);
 
         var categoryTitle = 'Test Title';
 
@@ -125,15 +128,55 @@ describe('REST', function () {
 
         })
 
+        it('should return an error if no title is specified', function(done){
+
+            var categoryTitle = "";
+                request
+                .get('/api/add_category?title=' + categoryTitle)
+                .set('Accept', 'application/json')
+                .expect('Content-Type', /json/)
+                .expect(200)
+                .end(function (err, res) {
+                    if (err)
+                        return done(err);
+
+                    res.body.should.have.property('error');
+                    done();
+                });
+        })
+
+        it('should return an error if title contains illegal characters', function(done){
+
+            var categoryTitle = "test%'";
+            request
+                .get('/api/add_category?title=' + categoryTitle)
+                .set('Accept', 'application/json')
+                .expect('Content-Type', /json/)
+                .expect(200)
+                .end(function (err, res) {
+                    if (err)
+                        return done(err);
+
+                    res.body.should.have.property('error');
+                    done();
+                });
+        })
+
+
         it('should add category to database', function(done) {
             var accessToken = '';
 
-            request
+            agent
                 .get('/api/get_access_token?facebook-token=' + facebookToken + '&facebook-id=' + facebookId)
                 .end(function(error, response){
                     if(error) done(error);
 
-                    request
+                    response.body.should.have.property('accessToken');
+                    console.log(response.body.accessToken);
+
+                    categoryTitle = Math.random().toString(36).substring(7);
+
+                    agent
                         .get('/api/add_category?access-token=' + response.body.accessToken + 'title=' + categoryTitle)
                         .set('Accept', 'application/json')
                         //.expect('Content-Type', /json/)
@@ -141,6 +184,7 @@ describe('REST', function () {
                         .end(function (err, res) {
                             if (err) return done(err);
 
+                            res.body.should.have.property('title');
 
                             Category.findOne({ title : categoryTitle }, function (error, user) {
                                 if (!user) return done(error);
@@ -157,13 +201,23 @@ describe('REST', function () {
         })
     })
 
-    describe('edit_category', function() {
-        it('should add category to database', function(done){
+    describe('get_category_by_title', function() {
+        this.timeout(15000);
+
+        it('should return an error if no title is specified', function(done){
+
+        })
+
+        it('should return an error if title contains illegal characters', function(done){
+
+        })
+
+        it('should return a valid category with good title', function(done){
 
         })
     })
     /*
-    describe('get_category_by_title', function() {
+    describe('autocomplete_category', function() {
         it('should add category to database', function(done){
 
         })
@@ -186,6 +240,25 @@ describe('REST', function () {
 
         })
     })
+
+
+     describe('add_want', function() {
+     it('should add category to database', function(done){
+
+     })
+     })
+
+     describe('remove_want', function() {
+     it('should', function(done){
+
+     })
+     })
+
+     describe('get_wants', function() {
+     it('should return an array', function(done){
+
+     })
+     })
 
     */
 })

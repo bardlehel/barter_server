@@ -1,8 +1,8 @@
 
 
 module.exports.unset = function (variable) {
-    return variable === null || typeof variable === 'undefined' || variable === undefined || trim(variable) === '';
-}
+    return variable === null || typeof variable === 'undefined' || variable === undefined || variable.trim() === '';
+};
 
 module.exports.hasRouteAccess = function (accessToken, request, response) {
     if (module.exports.unset(accessToken)) {
@@ -10,7 +10,7 @@ module.exports.hasRouteAccess = function (accessToken, request, response) {
         return false;
     }
     if (module.exports.unset(request.session.accessToken)) {
-        response.json({ error: 'no session data for access token' })
+        response.json({ error: 'no session data for access token' });
         return false;
     }
 
@@ -20,17 +20,18 @@ module.exports.hasRouteAccess = function (accessToken, request, response) {
     }
     
     return true;
-}
+};
 
-module.exports.hasParameters = function (request, params) {
+module.exports.hasParameters = function (request, params, response) {
     for (var i = 0; i < params.length; i++) {
         if (module.exports.unset(request.query[params[i]])){
+            response.json({error: 'lacking ' + params[i] + ' as a parameter.'})
             return false;
         }
     }
     
     return true;
-}
+};
 
 module.exports.isLoggedIn = function (req, res, next) {
     
@@ -40,5 +41,5 @@ module.exports.isLoggedIn = function (req, res, next) {
     
     // if they aren't redirect them to the home page
     res.redirect('/');
-}
+};
 
