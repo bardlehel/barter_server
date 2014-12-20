@@ -30,9 +30,8 @@
  */
 var request = require('supertest'); //used for http calls for REST
 var server = require('../server.js');
-var agent = request.agent(server);
+var agent = request.agent('http://localhost:8082');
 var assert = require("assert"); // node.js core module
-
 var should = require("should");
 var mongoose = require('mongoose');
 var express = require('express');
@@ -41,7 +40,7 @@ var configDB = require('../config/database.js');
 var climbtimeConn = '';
 var ClimbtimeUser = null;
 var Category = null;
-var facebookToken = "CAADs8OVZALMEBAKiTyzNjDvnIZCpCkA61EoQAzo4oeQA96lbTFiZBZCfOKtyLZADZCvTQBJatjiUZCaT4EjY1MWUMMKvzYa5ZALxSseXww0jRqlfPe8xXdhfZBM259FsTm9yp4srHWLD2X3R2oxGkSbyFbDBTRy3D1I7yzX6y86aZCiLp2eQghEYaJ5GDlLqrPWsDDHKXlQCPoH71ZAFZCdaNotL";
+var facebookToken = "CAADs8OVZALMEBALRtseK4GwruX26E34k7zZCU4d2L9N4JyKUrZBWOIi1ZBXeb5yROrBccoXn2dD19hNbSueoU0zajnUM0GJSYSd9vQuX5c4fzBIJSheWXeE9VLZBHnq23aIyQd3uKMaiWZAeJwSX7MTZB78oTXlgEJGj1f2h4BcDGZC3BuKZBOJm5ZAZAMD3VRyDmCGzCuDvkrZBVSVoJhcYd3F3";
 var facebookId = "1384707158489078";
 var http = require('http');
 
