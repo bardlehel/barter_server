@@ -6,9 +6,9 @@ var express  = require('express');
 var app      = express();
 var port     = process.env.PORT || 8082;
 var passport = require('passport');
-var bcrypt	 = require('bcrypt-nodejs');
 var cors 	 = require('cors');
 var session = require('express-session');
+var RedisStore = require('connect-redis')(session);
 var bodyParser = require('body-parser');
 var cookieParser = require('cookie-parser');
 
@@ -23,10 +23,10 @@ app.use(bodyParser.urlencoded({ extended: true }));
 app.use(session({
             secret: 'asfdfasdf234e23432',
             //name: cookie_name,
-            //store: sessionStore, // connect-mongo session store
+            store: new RedisStore({port: 7777})//, // connect-mongo session store
             //proxy: true,
-            resave: true,
-            saveUninitialized: true
+            //resave: true,
+            //saveUninitialized: true
     }));
 app.use(passport.initialize());
 //app.use(passport.session());

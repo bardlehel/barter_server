@@ -30,3 +30,13 @@ exports.schema = category;
 module.exports = function (dbconn) {
 	return dbconn.model('category', category, 'category');
 };
+
+exports.schema.options.toJSON = {
+	transform: function(doc, ret, options) {
+		ret.id = ret._id;
+		delete ret._id;
+		delete ret.__v;
+		return ret;
+	}
+};
+

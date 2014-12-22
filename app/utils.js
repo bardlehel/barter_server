@@ -15,6 +15,10 @@ module.exports.hasRouteAccess = function (accessToken, request, response) {
     }
 
     if (request.session.accessToken != accessToken) {
+        console.log('\n  ');
+        console.log('session access token:' + request.session.accessToken);
+        console.log('\n  ');
+        console.log('param access token:' + accessToken);
         response.json({ error: 'incorrect access token' });
         return false;
     }
@@ -22,15 +26,29 @@ module.exports.hasRouteAccess = function (accessToken, request, response) {
     return true;
 };
 
-module.exports.hasParameters = function (request, params, response) {
+module.exports.hasParameters = function (requestParams, params, response) {
     for (var i = 0; i < params.length; i++) {
-        if (module.exports.unset(request.query[params[i]])){
+        if (module.exports.unset(requestParams[params[i]])){
             response.json({error: 'lacking ' + params[i] + ' as a parameter.'})
             return false;
         }
     }
     
     return true;
+};
+
+module.exports.hasIllegalCharacters = function(requestParams, params, response) {
+
+    var regex = /["'~`!@#$%^&*()=+.]+/g;
+
+    for (var i = 0; i < params.length; i++) {
+        if (requestParams[params[i]].match(regex)) {
+            response.json({error: 'parameter ' + params[i] + ' has illegal characters.'});
+            return true;
+        }
+    }
+
+    return false;
 };
 
 module.exports.isLoggedIn = function (req, res, next) {

@@ -11,7 +11,7 @@ var restClient = new RestClient();
 var utils = require('./utils.js');
 var uuid = require('node-uuid');
 
-
+var THIRTY_MINUTES = 30 * 60000;
 
 
 
@@ -30,6 +30,9 @@ module.exports = function (app, passport) {
         //check if facebook-token is in barter database (user collection) already
         //if it exists, send back the user an accesstoken and set that to the session.
         //if no user exists for that facebook token, validate it with facebook and create a new token
+
+        if (utils.hasIllegalCharacters(request.query, ['facebook-token', 'facebook-id'], response)) return;
+
         var url = 'https://graph.facebook.com/me?fields=id&access_token=' 
             + request.query["facebook-token"];
 
@@ -45,51 +48,64 @@ module.exports = function (app, passport) {
 
             //if facebook returns valid user (matches facebook id sent)
             if (data.id == request.query["facebook-id"]) {
-                //see if we can find a Climbtime user with that facebook token
-                User.findOne({ 'facebook.token' : request.query['facebook-token'] }, function (error, user) {
-                    if (!user) {
-                        //create the uuid for the accesstoken and put it in the session and user collection
-                        request.session.accessToken = uuid.v1();
+                //first check our session if it contains a fresh accessToken
+                if (!utils.unset(request.session.accessTokenDate)) {
 
-                        var newUser = new User({
-                            'access_token' : request.session.accessToken,
-                            'access_token_date' : new Date()
-                        });
+                    if (utils.unset(request.session.accessToken))
+                        return request.json({ error: 'access token not saved in session for this user' })
 
-                        newUser.save(function (err, user) {
-                            if(err) {
-                                response.json({error : 'cannot save new climbtime user'});
-                                return;
+                    if  (new Date() <= new Date((new Date((user.session.accessTokenDate)).getTime() + THIRTY_MINUTES))) {
+                        //return the accessToken to user
+                        return response.json({ accessToken : user.session.accessToken });
+                    }
+                }
+                //see if user exists already in mongodb climbtime database
+                else {
+
+                    //see if we can find a Climbtime user with that facebook token
+                    User.findOne({'facebook.userId': request.query['facebook-id']}, function (error, user) {
+
+                        //user not found
+                        if (!user) {
+
+                            // see if we can
+                            //create the uuid for the accesstoken and put it in the session and user collection
+                            request.session.accessToken = uuid.v1();
+
+                            var newUser = new User({
+                                'access_token': request.session.accessToken,
+                                'access_token_date': new Date()
+                            });
+
+                            newUser.save(function (err, user) {
+                                if (err) {
+                                    response.json({error: 'cannot save new climbtime user'});
+                                    return;
+                                }
+
+                                request.session.climbtimeId = user._id;
+                                request.session.save();
+                                return response.json({'accessToken': request.session.accessToken});
+
+                            });
+
+                        }
+                        else {
+                            //return the user's access token if available
+                            request.session.accessToken =  user.access_token;
+                            request.session.accessTokenDate = user.access_token_date;
+
+                            if(new Date((new Date(user.access_token_date).getTime() + THIRTY_MINUTES)) <= new Date()) {
+                                return response.json({ authToken : request.session.accessToken });
                             }
-
-                            request.session.climbtimeId = user._id;
-                            request.session.save();
-                            response.json({ 'accessToken' : request.session.accessToken });
-
-                        });
-                    }
-                    else if (unset(user.access_token) || unset(user.access_token_date)) {
-                        response.json({'error:': error});
-                        return;
-                    }
-                    else {
-                        var date = new Date();
-                        var token_date = new Date(user.access_token_date);
-                        if (token_date == null) {
-                            response.json({'error': 'could not create token date object'});
-                            return;
+                            else {
+                                response.session.accessToken = uuid.v1();
+                                response.session.accessTokenDate = new Date();
+                                return response.json( {accessToken : response.session.accessToken });
+                            }
                         }
-
-                        //if access token is valid and date of token less than 60 minutes, save and return it
-                        if (user.access_token.length == uuid.v1().length
-                            && token_date.getTime() + 60 * 60000 > date.getTime()) {
-                            request.session.accessToken = user.access_token;
-                            request.session.save();
-                            response.json({'accessToken': user.access_token});
-                            return;
-                        }
-                    }
-                });
+                    });
+                }
             }
         }).on('error', function (err) {
                 console.log('something went wrong on the request', err.request.options);
@@ -100,24 +116,21 @@ module.exports = function (app, passport) {
     ////CLIMBTIME API
 
     //api/add_category: creates a new user-defined category into the climbtime database
-    //  query params:
+    //  body params (request.body):
     //      access-token:  token received from api/get_access_token
     //      title:    title of new category
     //  returns json: object containing category data
-    app.get('/api/add_category', function(request, response){
-        if (!utils.hasRouteAccess(request.query['access-token'], request, response)) return;
-        if (!utils.hasParameters(request, ['title'], response)) return;
+    app.post('/api/add_category', function(request, response){
+        if (!utils.hasRouteAccess(request.body.accessToken, request, response)) return;
+        if (!utils.hasParameters(request.body, ['title'], response)) return;
+        if (utils.hasIllegalCharacters(request.body, ['title'], response)) return;
 
-        var regex = /["'~`!@#$%^&*()_=+-.]+/g;
-        if (req.query.title.match(regex))  return response.json({ error : 'illegal characters sent to title' });
-
-
-        var newCategory = new Category({ title: request.query.title });
+        var newCategory = new Category({ title: request.body.title });
         //try to save the category and return it's ID
         newCategory.save(function (error) {
 
             if (utils.unset(error)) {
-                response.json(newCategory);
+                response.json(newCategory.toJSON());
                 return;
             }
 
@@ -133,14 +146,12 @@ module.exports = function (app, passport) {
     //	title
     app.get('/api/get_category_by_title', function (request, response) {
 
-        if (!utils.hasRouteAccess(request.query.query['access-token'], request, response)) return;
-        if (!utils.hasParameters(request, ['title'], response)) return;
-
-        var regex = /["'~`!@#$%^&*()_=+-.]+/g;
-        if (req.query.title.match(regex))  return response.json({ error : 'illegal characters sent to title' });
+        if (!utils.hasRouteAccess(request.query['access-token'], request, response)) return;
+        if (!utils.hasParameters(request.query, ['title'], response)) return;
+        if (utils.hasIllegalCharacters(request.query, ['title'], response)) return;
         
         //look up category by title
-        Category.findOne({ 'title' : req.query.title }, function (err, category) {
+        Category.findOne({ 'title' : request.query.title }, function (err, category) {
             
             //category found; return the category's id
             if (category) return response.json({ category_id : category._id });
@@ -151,10 +162,46 @@ module.exports = function (app, passport) {
             newCategory.save(function (error) {
                 
                 if (utils.unset(error)) {
-                    response.json({ category_id : newCategory._id });
+                    response.json(newCategory);
                     return;
                 }
                 
+                response.json({ error: 'could not save new category' });
+            });
+        });
+    });
+
+    //api/edit_category: edits the category if it exists
+    //body params (request.body):
+    //	accessToken
+    //	title
+    // (optional:)
+    // description:  description of the category
+    // mainPhoto: (file name + path of) photo to capture visual of the category
+    // photos: { albums: [ {albumTitle: 'xxx', photos: { {photoTitle: 'yyy',  path: '/photos/xyz.jpg'} } } ] }
+    app.put('/api/edit_category', function (request, response) {
+
+        if (!utils.hasRouteAccess(request.body.accessToken, request, response)) return;
+        if (!utils.hasParameters(request.body, ['title'], response)) return;
+        if (utils.hasIllegalCharacters(request.body, ['title', 'description'], response)) return;
+
+        //look up category by id
+        Category.findOne({ 'id' : request.body._id }, function (err, category) {
+
+            if (err) return response.json({ error : err });
+            if (!category) return response.json({ error : 'no category found' });
+
+            category.title = request.body.title;
+            category.description = request.body.description;
+
+            //since there is no category found, create the category
+            category.save(function (error) {
+
+                if (utils.unset(error)) {
+                    response.json({ category_id : newCategory._id, result: 'successfully updated category' });
+                    return;
+                }
+
                 response.json({ error: 'could not save new category' });
             });
         });
@@ -164,15 +211,37 @@ module.exports = function (app, passport) {
     //query params:
     //	title: string to lookup parts of category titles
     app.get('/api/autocomplete_category', function (request, response) {
+        if (!utils.hasParameters(request.query, ['title'], response)) return;
+        if (utils.hasIllegalCharacters(request.query, ['title'], response)) return;
+        //limit top 50
+        var r = new RegExp(request.query.title,'i');
+        var query = Category.find({name: r});
+        query.exec(function(error, categories){
+            response.json(categories);
+        });
+
+    });
+
+
+    //api/get_topic_by_title:  returns a topic from category collection, or new category if not found
+    //query params:
+    //	access-token: token received from /api/get_acccess_token
+    //	title: title of the topic/concept4
+    app.get('/api/get_topic_by_title', function (request, response) {
+        if (!utils.hasRouteAccess(request.query['access-token'], request, response)) return;
         if (!utils.hasParameters(request, ['title'], response)) return;
 
-        Category.findOne({ title: new RegExp('^' + req.query.title + '$', "i") }, function (error, category) {
+        Category.findOne({ title: request.query.title }, function (error, category) {
+
+            if (!category) {
+                //create new category if category doesn't exist
+                category = new Category({ title: request.query.title });
+                category.save();
+            }
+
             response.json(category);
         });
     });
-    
-
-    
     
     //api/get_haves: gets the list of 'haves' from user and returns it to user
     //query params:
@@ -244,25 +313,7 @@ module.exports = function (app, passport) {
     
 
     
-    //api/get_topic_by_title:  returns a topic from category collection, or new category if not found
-    //query params:
-    //	access-token: token received from /api/get_acccess_token
-    //	title: title of the topic/concept4
-    app.get('/api/get_topic_by_title', function (request, response) {
-        if (!utils.hasRouteAccess(request.query['access-token'], request, response)) return;
-        if (!utils.hasParameters(request, ['title'], response)) return;
 
-        Category.findOne({ title: request.query.title }, function (error, category) {
-            
-            if (!category) {
-                //create new category if category doesn't exist 
-                category = new Category({ title: request.query.title });
-                category.save();
-            }
-            
-            response.json(category);
-        });
-    });
     
     //api/add_want: adds a 'want' to the list of 'wants' of the user
     //query params:
