@@ -119,13 +119,19 @@ module.exports = function (app, passport) {
     //  body params (request.body):
     //      access-token:  token received from api/get_access_token
     //      title:    title of new category
+    //      parent_id: id of the parent category
     //  returns json: object containing category data
     app.post('/api/add_category', function(request, response){
-        if (!utils.hasRouteAccess(request.body.accessToken, request, response)) return;
-        if (!utils.hasParameters(request.body, ['title'], response)) return;
-        if (utils.hasIllegalCharacters(request.body, ['title'], response)) return;
+        var paramArray = ['title', 'parent_id'];
 
-        var newCategory = new Category({ title: request.body.title });
+        if (!utils.hasRouteAccess(request.body.accessToken, request, response)) return;
+        if (!utils.hasParameters(request.body, paramArray, response)) return;
+        if (utils.hasIllegalCharacters(request.body, paramArray, response)) return;
+
+        var newCategory = new Category({
+            title: request.body.title,
+            parent: [parent_id]
+        });
         //try to save the category and return it's ID
         newCategory.save(function (error) {
 
@@ -174,25 +180,31 @@ module.exports = function (app, passport) {
     //api/edit_category: edits the category if it exists
     //body params (request.body):
     //	accessToken
-    //	title
+    //	category_id
     // (optional:)
+    // title: new title of the category
+    // parents: array of parent category ids
     // description:  description of the category
     // mainPhoto: (file name + path of) photo to capture visual of the category
     // photos: { albums: [ {albumTitle: 'xxx', photos: { {photoTitle: 'yyy',  path: '/photos/xyz.jpg'} } } ] }
     app.put('/api/edit_category', function (request, response) {
 
         if (!utils.hasRouteAccess(request.body.accessToken, request, response)) return;
-        if (!utils.hasParameters(request.body, ['title'], response)) return;
-        if (utils.hasIllegalCharacters(request.body, ['title', 'description'], response)) return;
+        if (!utils.hasParameters(request.body, ['category_id'], response)) return;
+        if (utils.hasIllegalCharacters(request.body, ['category_id', 'title', 'parents','description'], response)) return;
 
         //look up category by id
-        Category.findOne({ 'id' : request.body._id }, function (err, category) {
+        Category.findOne({ 'id' : request.body.category_id }, function (err, category) {
 
             if (err) return response.json({ error : err });
             if (!category) return response.json({ error : 'no category found' });
 
-            category.title = request.body.title;
-            category.description = request.body.description;
+            if(!utils.unset(request.body.title))
+                category.title = request.body.title;
+            if(!utils.unset(request.body.description))
+                category.description = request.body.description;
+            if(!utils.unset(request.body.parents) && request.body.parents.length > 0)
+            category.parent = request.body.parents;
 
             //since there is no category found, create the category
             category.save(function (error) {
@@ -213,9 +225,11 @@ module.exports = function (app, passport) {
     app.get('/api/autocomplete_category', function (request, response) {
         if (!utils.hasParameters(request.query, ['title'], response)) return;
         if (utils.hasIllegalCharacters(request.query, ['title'], response)) return;
-        //limit top 50
-        var r = new RegExp(request.query.title,'i');
-        var query = Category.find({name: r});
+
+        if(request.query.title.length < 3) return response.json({error: 'title less than 3 characters'});
+
+        var r =  new RegExp('^'+request.query.title, "i");
+        var query = Category.find({title:r}).limit(10);
         query.exec(function(error, categories){
             response.json(categories);
         });
