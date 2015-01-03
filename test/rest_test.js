@@ -20,30 +20,33 @@
  *  remove_interest:
  * 
  * Climbtime General API:   
- *  get_category_by_title:  
- *  add_category:
- *  edit_category:
- *  get_topic_by_title:
- *  add_topic:
- *  edit_topic:
+ *  get category:
+ *  post category:
+ *  put category:
+ *  get topic:
+ *  post topic:
+ *  put topic:
  * 
  */
 var request = require('supertest'); //used for http calls for REST
 var server = require('../server.js');
-var agent = request.agent('http://localhost:8082');
+var agent = request.agent('http://localhost:8083');
 var assert = require("assert"); // node.js core module
 var should = require("should");
 var mongoose = require('mongoose');
 var express = require('express');
+var q = require('q');
 var app = express();
 var configDB = require('../config/database.js');
+
 var climbtimeConn = '';
 var ClimbtimeUser = null;
 var Category = null;
-var facebookToken = "CAADs8OVZALMEBAJZCkCGrAft9ZAZCCAZAYWk4X3BNN07Abq3Uj3Gwh0Xecb1d7xwGj5wV40dS8mZBwZBBRf3PGiKDreScM3J1ah1ZCnJi9Gl43YykX82h9av7j7n6sqcd9dwCCsb5iK9p9eiZCB645DPdPMWmenbncZBo7DgVYOrDfU4OdROIv12w3AH8ZB2gflaHK8ZAOsgjd3FhkLZCs8ZBS0IE1";
+var facebookToken = "CAADs8OVZALMEBAGGzk1EZCcHZBx9Q210kZAb6oXtcah5UG6L2wJleAvHDqDkpLOe2pQ9AEu4UUYyKgsdxz3S5I382ubDjQIbfbarsDKlewhf3tPh5dP9pWF2PiUzrbFQKk1N3ktnE94ZBFKQW5bGbNxaPm4tCPvCgixKPSdKpqtUGPZATcd5Cnn4B9ZApd7ySngJye8i1m0FrKEPDpiZCCnc";
 var facebookId = "1384707158489078";
 var http = require('http');
 var accessToken = '';
+var PERSON_CATEGORY_ID = '539740c3f1fa991089c67f16';
 
 describe('REST', function () {
 
@@ -53,12 +56,16 @@ describe('REST', function () {
         climbtimeConn = mongoose.createConnection(configDB.climbtime_url);
         ClimbtimeUser = require("../app/models/user.js")(climbtimeConn);
         Category = require("../app/models/category.js")(climbtimeConn);
-        request = request.agent('http://localhost:8082');
+        request = request.agent('http://localhost:8083');
 
         done();
     });
 
-    describe('get_access_token', function () {
+
+    /////////////////////////////////////////////////////////////////////
+    //  TEST for getting access token
+    /////////////////////////////////////////////////////////////////////
+    describe('GET: access_token', function () {
         this.timeout(15000);
 
         it('should get a 200 back', function (done) {
@@ -70,7 +77,7 @@ describe('REST', function () {
         it('should return a token when passing in facebook token', function (done) {
 
                 request
-                .get('/api/get_access_token?facebook-token=' + facebookToken + '&facebook-id=' + facebookId)
+                .get('/api/access_token?facebook-token=' + facebookToken + '&facebook-id=' + facebookId)
                     .set('Accept', 'application/json')
                     .expect('Content-Type', /json/)
                     .expect(200)
@@ -94,7 +101,7 @@ describe('REST', function () {
         it('should return an error if facebook token is invalid', function (done) {
             var invalidFacebookToken = '111';
             request
-                .get('/api/get_access_token?facebook-token=' + invalidFacebookToken + '&facebook-id=' + facebookId)
+                .get('/api/access_token?facebook-token=' + invalidFacebookToken + '&facebook-id=' + facebookId)
                 .set('Accept', 'application/json')
                 .expect('Content-Type', /json/)
                 .expect(200)
@@ -107,7 +114,142 @@ describe('REST', function () {
 
     })
 
-    describe('add_category', function() {
+
+    /////////////////////////////////////////////////////////////////////
+    //  TEST for getting categories
+    /////////////////////////////////////////////////////////////////////
+    describe('GET: category', function() {
+        this.timeout(15000);
+
+        var categoryTitle = '';
+        var accessToken = '';
+
+        it('should return an error if no title is specified', function(done){
+            categoryTitle = '';
+
+            request
+                .get('/api/access_token?facebook-token=' + facebookToken + '&facebook-id=' + facebookId)
+                .set('Accept', 'application/json')
+                .end(function (err, res) {
+                    if (err)
+                        return done(err);
+
+                    accessToken = res.body.accessToken;
+                    accessToken.should.not.equal('');
+
+                    request
+                        .get('/api/category?access-token=' + accessToken + '&title=' + categoryTitle)
+                        .set('Accept', 'application/json')
+                        //.expect('Content-Type', /json/)
+                        .expect(200)
+                        .end(function (err, res) {
+                            if (err) return done(err);
+
+                            res.body.should.have.property('error');
+                            return done();
+                        });
+                });
+
+
+        })
+
+        it('should return an error if title contains illegal characters', function(done){
+            categoryTitle = '222%272abc';
+
+            request
+                .get('/api/access_token?facebook-token=' + facebookToken + '&facebook-id=' + facebookId)
+                .set('Accept', 'application/json')
+                .end(function (err, res) {
+                    if (err)
+                        return done(err);
+
+                    accessToken = res.body.accessToken;
+                    accessToken.should.not.equal('');
+
+                    request
+                        .get('/api/category?access-token=' + accessToken + '&title=' + categoryTitle)
+                        .set('Accept', 'application/json')
+                        //.expect('Content-Type', /json/)
+                        .expect(200)
+                        .end(function (err, res) {
+                            if (err) return done(err);
+
+                            res.body.should.have.property('error');
+                            return done();
+                        });
+                });
+
+        })
+
+        it('should return an error if title not found', function(done){
+            //create random string
+            categoryTitle = Math.random().toString(36).substring(7);
+            // do a find for title with that string
+            request
+                .get('/api/access_token?facebook-token=' + facebookToken + '&facebook-id=' + facebookId)
+                .set('Accept', 'application/json')
+                .end(function (err, res) {
+                    if (err)
+                        return done(err);
+
+                    accessToken = res.body.accessToken;
+                    accessToken.should.not.equal('');
+
+                    request
+                        .get('/api/category?access-token=' + accessToken + '&title=' + categoryTitle)
+                        .set('Accept', 'application/json')
+                        //.expect('Content-Type', /json/)
+                        .expect(200)
+                        .end(function (err, res) {
+                            if (err) return done(err);
+
+                            res.body.should.have.property('categories');
+                            res.body.categories.length.should.equal(0);
+                            return done();
+                        });
+                });
+        })
+
+        it('should return a valid category with an existing title', function(done){
+
+            categoryTitle = 'Person';
+
+            request
+                .get('/api/access_token?facebook-token=' + facebookToken + '&facebook-id=' + facebookId)
+                .set('Accept', 'application/json')
+                .end(function (err, res) {
+                    if (err)
+                        return done(err);
+
+                    accessToken = res.body.accessToken;
+                    accessToken.should.not.equal('');
+
+                    request
+                        .get('/api/category?access-token=' + accessToken + '&title=' + categoryTitle)
+                        .set('Accept', 'application/json')
+                        //.expect('Content-Type', /json/)
+                        .expect(200)
+                        .end(function (err, res) {
+                            if (err) return done(err);
+
+                            res.body.should.have.property('categories');
+                            res.body.categories.length.should.be.above(0);
+                            res.body.categories[0].should.have.property('title');
+                            res.body.categories[0].title.should.equal('Person');
+                            return done();
+                        });
+
+                    return done();
+                });
+
+        })
+
+    })
+
+    /////////////////////////////////////////////////////////////////////
+    //  TESTs for creating a category
+    /////////////////////////////////////////////////////////////////////
+    describe('POST: category', function() {
 
         this.timeout(20000);
         var categoryTitle = 'Test Title';
@@ -124,7 +266,7 @@ describe('REST', function () {
             };
 
             request
-                .post('/api/add_category')
+                .post('/api/category')
                 .send(postData)
                 .set('Accept', 'application/json')
                 .expect('Content-Type', /json/)
@@ -144,7 +286,7 @@ describe('REST', function () {
             categoryTitle = '';
 
             request
-                .get('/api/get_access_token?facebook-token=' + facebookToken + '&facebook-id=' + facebookId)
+                .get('/api/access_token?facebook-token=' + facebookToken + '&facebook-id=' + facebookId)
                 .set('Accept', 'application/json')
                 .expect('Content-Type', /json/)
                 .expect(200)
@@ -160,7 +302,7 @@ describe('REST', function () {
                     };
 
                     request
-                        .post('/api/add_category')
+                        .post('/api/category')
                         .send(postData)
                         .set('Accept', 'application/json')
                         .expect('Content-Type', /json/)
@@ -181,7 +323,7 @@ describe('REST', function () {
             var categoryTitle = "test%27";
 
             request
-                .get('/api/get_access_token?facebook-token=' + facebookToken + '&facebook-id=' + facebookId)
+                .get('/api/access_token?facebook-token=' + facebookToken + '&facebook-id=' + facebookId)
                 .set('Accept', 'application/json')
                 .expect('Content-Type', /json/)
                 .expect(200)
@@ -197,7 +339,7 @@ describe('REST', function () {
                     };
 
                     request
-                        .post('/api/add_category')
+                        .post('/api/category')
                         .send(postData)
                         .set('Accept', 'application/json')
                         .expect('Content-Type', /json/)
@@ -213,6 +355,45 @@ describe('REST', function () {
 
 
                 });
+        })
+
+        it('should return error if valid parent id is not supplied', function(done) {
+
+            categoryTitle = Math.random().toString(36).substring(7);
+
+            request
+                .get('/api/access_token?facebook-token=' + facebookToken + '&facebook-id=' + facebookId)
+                .set('Accept', 'application/json')
+                .expect('Content-Type', /json/)
+                .expect(200)
+                .end(function (err, res) {
+                    if (err) return done(err);
+
+                    res.body.should.have.property('accessToken');
+                    accessToken = res.body.accessToken;
+
+                    var postData = {
+                        accessToken : accessToken,
+                        title: categoryTitle
+                    };
+
+                    request
+                        .post('/api/category')
+                        .send(postData)
+                        .set('Accept', 'application/json')
+                        .expect('Content-Type', /json/)
+                        .expect(200)
+                        .end(function (err, res) {
+                            if (err)
+                                return done(err);
+
+                            res.body.should.have.property('error');
+                            return done();
+                        });
+
+
+                });
+
         })
 
 
@@ -220,9 +401,8 @@ describe('REST', function () {
 
             categoryTitle = Math.random().toString(36).substring(7);
 
-
             request
-                .get('/api/get_access_token?facebook-token=' + facebookToken + '&facebook-id=' + facebookId)
+                .get('/api/access_token?facebook-token=' + facebookToken + '&facebook-id=' + facebookId)
                 .set('Accept', 'application/json')
                 .expect('Content-Type', /json/)
                 .expect(200)
@@ -232,14 +412,9 @@ describe('REST', function () {
                     res.body.should.have.property('accessToken');
                     accessToken = res.body.accessToken;
 
-                    var postData = {
-                        accessToken : accessToken,
-                        title: categoryTitle
-                    };
-
+                    //get the "Person" category
                     request
-                        .post('/api/add_category')
-                        .send(postData)
+                        .get('/api/category?access-token=' + accessToken + '&title=Person')
                         .set('Accept', 'application/json')
                         .expect('Content-Type', /json/)
                         .expect(200)
@@ -247,10 +422,40 @@ describe('REST', function () {
                             if (err)
                                 return done(err);
 
-                            res.body.should.have.property('title');
-                            res.body.title.should.equal(categoryTitle);
-                            return done();
+                            res.body.should.have.property('categories');
+                            res.body.categories.length.should.be.above(0);
+                            res.body.categories[0].should.have.property('title');
+                            res.body.categories[0].title.should.equal('Person');
+
+                            //POST the new category using "PERSON" as the parent
+                            res.body.categories[0].should.have.property('id');
+                            var parentId = res.body.categories[0].id;
+
+                            var postData = {
+                                accessToken : accessToken,
+                                title: categoryTitle,
+                                parents: [parentId]
+                            };
+
+                            request
+                                .post('/api/category')
+                                .send(postData)
+                                .set('Accept', 'application/json')
+                                .expect('Content-Type', /json/)
+                                .expect(200)
+                                .end(function (err, res) {
+                                    if (err)
+                                        return done(err);
+
+                                    res.body.should.have.property('parent');
+                                    res.body.parent.length.should.be.above(0);
+                                    res.body.parent[0].should.equal(PERSON_CATEGORY_ID);
+
+                                    return done();
+                                });
                         });
+
+
 
 
                 });
@@ -258,124 +463,25 @@ describe('REST', function () {
         })
     })
 
-    describe('get_category_by_title', function() {
+
+    /////////////////////////////////////////////////////////////////////
+    //  TEST for editing a category
+    /////////////////////////////////////////////////////////////////////
+    describe('PUT: category', function() {
         this.timeout(15000);
 
         var categoryTitle = '';
+        var categoryDescription = '';
         var accessToken = '';
 
-        it('should return an error if no title is specified', function(done){
-            categoryTitle = '';
+        it('should not take illegal characters in title, description or parents', function (done) {
+
+            categoryTitle = "test%27";
+            description = 'test';
+
 
             request
-                .get('/api/get_access_token?facebook-token=' + facebookToken + '&facebook-id=' + facebookId)
-                .set('Accept', 'application/json')
-                .end(function (err, res) {
-                    if (err)
-                        return done(err);
-
-                    accessToken = res.body.accessToken;
-                    accessToken.should.not.equal('');
-
-                    request
-                        .get('/api/get_category_by_title?access-token=' + accessToken + '&title=' + categoryTitle)
-                        .set('Accept', 'application/json')
-                        //.expect('Content-Type', /json/)
-                        .expect(200)
-                        .end(function (err, res) {
-                            if (err) return done(err);
-
-                            res.body.should.have.property('error');
-                            return done();
-                        });
-                });
-
-
-        })
-
-        it('should return an error if title contains illegal characters', function(done){
-            categoryTitle = '222%272abc';
-
-            request
-                .get('/api/get_access_token?facebook-token=' + facebookToken + '&facebook-id=' + facebookId)
-                .set('Accept', 'application/json')
-                .end(function (err, res) {
-                    if (err)
-                        return done(err);
-
-                    accessToken = res.body.accessToken;
-                    accessToken.should.not.equal('');
-
-                    request
-                        .get('/api/get_category_by_title?access-token=' + accessToken + '&title=' + categoryTitle)
-                        .set('Accept', 'application/json')
-                        //.expect('Content-Type', /json/)
-                        .expect(200)
-                        .end(function (err, res) {
-                            if (err) return done(err);
-
-                            res.body.should.have.property('error');
-                            return done();
-                        });
-                });
-
-        })
-
-        it('should return a valid category with good title', function(done){
-            categoryTitle = Math.random().toString(36).substring(7);
-            console.log('title will be: ' + categoryTitle);
-            request
-                .get('/api/get_access_token?facebook-token=' + facebookToken + '&facebook-id=' + facebookId)
-                .set('Accept', 'application/json')
-                .end(function (err, res) {
-                    if (err)
-                        return done(err);
-
-                    accessToken = res.body.accessToken;
-                    accessToken.should.not.equal('');
-
-                    request
-                        .get('/api/get_category_by_title?access-token=' + accessToken + '&title=' + categoryTitle)
-                        .set('Accept', 'application/json')
-                        //.expect('Content-Type', /json/)
-                        .expect(200)
-                        .end(function (err, res) {
-                            if (err) return done(err);
-
-                            res.body.should.have.property('title');
-                            title.should.equal(categoryTitle);
-                            return done();
-                        });
-
-                    return done();
-                });
-
-        })
-
-    })
-
-    describe('edit_category', function() {
-        this.timeout(15000);
-
-        var categoryTitle = '';
-        var accessToken = '';
-
-        it('updated the title if we change the title', function(done){
-
-        })
-    })
-
-    describe('autocomplete_category', function() {
-
-        this.timeout(60000);
-
-        var categoryTitle = '';
-        var accessToken = '';
-
-        it('should add a categories with similar beginnings and be within the results list', function(done){
-
-            request
-                .get('/api/get_access_token?facebook-token=' + facebookToken + '&facebook-id=' + facebookId)
+                .get('/api/access_token?facebook-token=' + facebookToken + '&facebook-id=' + facebookId)
                 .set('Accept', 'application/json')
                 .expect('Content-Type', /json/)
                 .expect(200)
@@ -385,28 +491,259 @@ describe('REST', function () {
                     res.body.should.have.property('accessToken');
                     accessToken = res.body.accessToken;
 
-                    //add 3 categories starting with the same characters;
-                    var firstCharacters = Math.random().toString(36).substring(7);
-                    var counter = 0;
-                    for(var i = 0; i < 3; i++) {
-                        categoryTitle = firstCharacters + Math.random().toString(36).substring(7);
-                        var postData = {
-                            accessToken : accessToken,
-                            title: categoryTitle
-                        };
+                    //get the "PERSON" category
+                    request
+                        .get('/api/category?access-token=' + accessToken + '&title=Person')
+                        .set('Accept', 'application/json')
+                        .expect('Content-Type', /json/)
+                        .expect(200)
+                        .end(function (err, res) {
+                            if (err)
+                                return done(err);
 
-                        request
-                            .post('/api/add_category')
-                            .send(postData)
-                            .end(function (err, res) {
-                                res.body.should.have.property('title');
+                            res.body.should.have.property('categories');
+                            res.body.categories.length.should.be.above(0);
+                            res.body.categories[0].should.have.property('title');
+                            res.body.categories[0].title.should.equal('Person');
 
-                                counter++;
-                                if (counter == 3) {
+                            var parentId = res.body.categories[0].id;
 
+                            var postData = {
+                                accessToken: accessToken,
+                                title: categoryTitle,
+                                description: categoryDescription,
+                                parents: [parentId]
+                            };
+
+                            request
+                                .put('/api/category')
+                                .send(postData)
+                                .set('Accept', 'application/json')
+                                .expect('Content-Type', /json/)
+                                .expect(200)
+                                .end(function (err, res) {
                                     if (err)
                                         return done(err);
 
+                                    res.body.should.have.property('error');
+                                });
+
+                            categoryTitle = Math.random().toString(36).substring(7);
+                            categoryDescription = "test%27";
+
+                            postData = {
+                                accessToken: accessToken,
+                                title: categoryTitle,
+                                description: categoryDescription,
+                                parents: [parentId]
+                            };
+
+                            request
+                                .put('/api/category')
+                                .send(postData)
+                                .set('Accept', 'application/json')
+                                .expect('Content-Type', /json/)
+                                .expect(200)
+                                .end(function (err, res) {
+                                    if (err)
+                                        return done(err);
+
+                                    res.body.should.have.property('error');
+                                });
+
+                            categoryTitle = Math.random().toString(36).substring(7);
+                            categoryDescription = Math.random().toString(36).substring(7);
+                            parentId = '12334%24';
+
+                            postData = {
+                                accessToken: accessToken,
+                                title: categoryTitle,
+                                description: categoryDescription,
+                                parents: [parentId]
+                            };
+
+                            request
+                                .put('/api/category')
+                                .send(postData)
+                                .set('Accept', 'application/json')
+                                .expect('Content-Type', /json/)
+                                .expect(200)
+                                .end(function (err, res) {
+                                    if (err)
+                                        return done(err);
+
+                                    res.body.should.have.property('error');
+                                    return done();
+                                });
+
+
+                        });
+                })
+
+        })
+
+        it('updated the title if we change the title', function (done) {
+
+            var categoryTitle = Math.random().toString(36).substring(7);
+            var categoryDescription = Math.random().toString(36).substring(7);
+
+            request
+                .get('/api/access_token?facebook-token=' + facebookToken + '&facebook-id=' + facebookId)
+                .set('Accept', 'application/json')
+                .expect('Content-Type', /json/)
+                .expect(200)
+                .end(function (err, res) {
+                    if (err) return done(err);
+
+                    res.body.should.have.property('accessToken');
+                    accessToken = res.body.accessToken;
+
+                    //get the "PERSON" category
+                    request
+                        .get('/api/category?access-token=' + accessToken + '&title=Person')
+                        .set('Accept', 'application/json')
+                        .expect('Content-Type', /json/)
+                        .expect(200)
+                        .end(function (err, res) {
+                            if (err)
+                                return done(err);
+
+                            res.body.should.have.property('categories');
+                            res.body.categories.length.should.be.above(0);
+                            res.body.categories[0].should.have.property('title');
+                            res.body.categories[0].title.should.equal('Person');
+
+                            var parentId = res.body.categories[0].id;
+
+                            var postData = {
+                                accessToken: accessToken,
+                                title: categoryTitle,
+                                description: categoryDescription,
+                                parents: [parentId]
+                            };
+
+                            //add a category
+                            request
+                                .post('/api/category')
+                                .send(postData)
+                                .set('Accept', 'application/json')
+                                .expect('Content-Type', /json/)
+                                .expect(200)
+                                .end(function (err, res) {
+                                    if (err)
+                                        return done(err);
+
+                                    res.body.should.have.property('title');
+                                    res.body.title.should.equal(categoryTitle);
+                                    res.body.should.have.property('description');
+                                    res.body.description.should.equal(categoryDescription);
+
+                                    //update the category with new title and new descritpion
+                                    var newTitle = '12345';
+                                    var newDescription = '67890';
+
+                                    var postData = {
+                                        accessToken: accessToken,
+                                        category_id: res.body.id,
+                                        title: newTitle,
+                                        description: newDescription//,
+                                        //parents: [parentId]
+                                    };
+
+                                    request
+                                        .put('/api/category')
+                                        .send(postData)
+                                        .set('Accept', 'application/json')
+                                        .expect('Content-Type', /json/)
+                                        .expect(200)
+                                        .end(function (err, res) {
+                                            if (err)
+                                                return done(err);
+
+                                            res.body.should.have.property('title');
+                                            res.body.title.should.equal(newTitle);
+                                            res.body.should.have.property('description');
+                                            res.body.description.should.equal(newDescription);
+
+                                            return done();
+
+                                        });
+                                });
+                        })
+
+
+                })
+
+        })
+
+    })
+    /////////////////////////////////////////////////////////////////////
+    //  TEST for getting autocompletes for category title
+    /////////////////////////////////////////////////////////////////////
+    describe('GET: autocomplete_category', function() {
+
+        this.timeout(60000);
+
+        var categoryTitle = '';
+        var accessToken = '';
+
+        function addCategory(title, parentId) {
+
+            var deferred = q.defer();
+            var categoryTitle = title + Math.random().toString(36).substring(7);
+            var postData = {
+                accessToken : accessToken,
+                title: categoryTitle,
+                parents: [parentId]
+            };
+
+            request
+                .post('/api/category')
+                .send(postData)
+                .end(function (err, res) {
+                    deferred.resolve(res.body);
+                });
+
+            return deferred.promise;
+        }
+
+        it('should add a categories with similar beginnings and be within the results list', function(done){
+
+            request
+                .get('/api/access_token?facebook-token=' + facebookToken + '&facebook-id=' + facebookId)
+                .set('Accept', 'application/json')
+                .expect('Content-Type', /json/)
+                .expect(200)
+                .end(function (err, res) {
+                    if (err) return done(err);
+
+                    res.body.should.have.property('accessToken');
+                    accessToken = res.body.accessToken;
+
+                    request
+                        .get('/api/category?access-token=' + accessToken + '&title=Person')
+                        .set('Accept', 'application/json')
+                        .expect('Content-Type', /json/)
+                        .expect(200)
+                        .end(function (err, res) {
+                            if (err)
+                                return done(err);
+
+                            res.body.should.have.property('categories');
+                            res.body.categories.length.should.be.above(0);
+                            res.body.categories[0].should.have.property('title');
+                            res.body.categories[0].title.should.equal('Person');
+
+                            var parentId = res.body.categories[0].id;
+
+                            //add 3 categories starting with the same characters;
+                            var firstCharacters = Math.random().toString(36).substring(7);
+                            var counter = 0;
+
+                            addCategory(firstCharacters + '1', parentId)
+                                .then(addCategory(firstCharacters + '2', parentId))
+                                .then(addCategory(firstCharacters + '3', parentId))
+                                .then(function(resolve, reject) {
                                     request
                                         .get('/api/autocomplete_category?title=' + firstCharacters)
                                         .set('Accept', 'application/json')
@@ -417,51 +754,49 @@ describe('REST', function () {
                                                 return done(err);
 
                                             res.body.should.have.property('categories');
+                                            res.body.categories.length.should.equal(3);
+                                            return done();
                                         });
-                                }
-                            });
-                    }
+                                });
+                        });
+
                 });
-
-
-
-
         })
     })
 
     /*
-    describe('add_have', function() {
+    describe('POST: have', function() {
         it('should add category to database', function(done){
 
         })
     })
 
-    describe('remove_have', function() {
+    describe('DELETE: have', function() {
         it('should', function(done){
 
         })
     })
 
-    describe('get_haves', function() {
+    describe('GET: have', function() {
         it('should return an array', function(done){
 
         })
     })
 
 
-     describe('add_want', function() {
+     describe('POST: want', function() {
      it('should add category to database', function(done){
 
      })
      })
 
-     describe('remove_want', function() {
+     describe('DELETE: want', function() {
      it('should', function(done){
 
      })
      })
 
-     describe('get_wants', function() {
+     describe('GET: want', function() {
      it('should return an array', function(done){
 
      })

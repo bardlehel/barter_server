@@ -1,7 +1,10 @@
 
 
 module.exports.unset = function (variable) {
-    return variable === null || typeof variable === 'undefined' || variable === undefined || variable.trim() === '';
+    return variable === null
+        || typeof variable === 'undefined'
+        || variable === undefined
+        || (typeof(variable) === 'string' && variable.trim() === '');
 };
 
 module.exports.hasRouteAccess = function (accessToken, request, response) {
@@ -40,9 +43,24 @@ module.exports.hasParameters = function (requestParams, params, response) {
 module.exports.hasIllegalCharacters = function(requestParams, params, response) {
 
     var regex = /["'~`!@#$%^&*()=+.]+/g;
+    var searchString = '';
 
     for (var i = 0; i < params.length; i++) {
-        if (requestParams[params[i]].match(regex)) {
+
+        if (requestParams[params[i]] === undefined)
+            continue;
+        else if (requestParams[params[i]].constructor === Array) {
+
+            var array = requestParams[params[i]];
+
+            for(var j = 0; j < array.length; j++ ) {
+                if (array[j].match(regex)) {
+                    response.json({error: 'parameter ' + params[i] + ' has illegal characters.'});
+                    return true;
+                }
+            }
+        }
+        else if (requestParams[params[i]].match(regex)) {
             response.json({error: 'parameter ' + params[i] + ' has illegal characters.'});
             return true;
         }

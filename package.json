@@ -23,7 +23,8 @@
     "supertest": "^0.15.0",
     "request": "^2.49.0",
     "redis": "^0.12.1",
-    "connect-redis": "^2.1.0"
+    "connect-redis": "^2.1.0",
+    "q": "^1.1.2"
   },
   "scripts": {
     "start": "node server.js"
