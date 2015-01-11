@@ -42,11 +42,11 @@ var configDB = require('../config/database.js');
 var climbtimeConn = '';
 var ClimbtimeUser = null;
 var Category = null;
-var facebookToken = "CAADs8OVZALMEBAPsbOANjfwOZAZAvetDl6qSRI8HctLfbuRd4rG6tr9ekNmOhXyH8nKo73ZCDHfjs1Uhm6gLO0aPrvGhFB8OEuT2iQLPjifWxk1uuYc7EVtMe0dk1t6nkLzy9KDCISN7hzZBxLAV9oa0QFUYQZAi8X8FpEpHinhyXNm5yeQbaFPZA7anmDhPYWocUcpkh6ZBekrPcjzJNXaO";
+var facebookToken = "CAADs8OVZALMEBAJHcNCPk0w30T2CmzQ2ZAncBWMydhn25He2wN1SKf3VKQOb1EdSSZAhoU4FHPMOlOG2UYCpZAjdBLfi8KB31eefYs9qJBhWZBeKtjYHjZAXB8CYsVoMLm6OPzawNINKLu3SBGyJSmcZATae4u34wzA7YdeZBhYwIfWLTEIIj5dM6WtSC3DSyNpCZBMMFgBMm2FtP9vXbChxF";
 var facebookId = "100008874782837";
 var http = require('http');
 var accessToken = '';
-var PERSON_CATEGORY_ID = '539740c3f1fa991089c67f16';
+var PERSON_CATEGORY_ID = '536e8c404952f1f034239ab3';
 
 describe('REST', function () {
 
@@ -115,7 +115,7 @@ describe('REST', function () {
     })
 
 
-    /*
+
     /////////////////////////////////////////////////////////////////////
     //  TEST for getting categories
     /////////////////////////////////////////////////////////////////////
@@ -770,7 +770,7 @@ describe('REST', function () {
     })
 
 
-    */
+
 
     describe('GET: have', function() {
         this.timeout(30000);

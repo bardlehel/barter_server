@@ -11,6 +11,9 @@ var session = require('express-session');
 var RedisStore = require('connect-redis')(session);
 var bodyParser = require('body-parser');
 var cookieParser = require('cookie-parser');
+var dbConfig = require('./config/database.js');
+var redisUrl   = require("url").parse(dbConfig.redis_url),
+    redisAuth = redisUrl.auth.split(':'); ;
 
 
 // configuration ===============================================================
@@ -23,7 +26,12 @@ app.use(bodyParser.urlencoded({ extended: true }));
 app.use(session({
             secret: 'asfdfasdf234e23432',
             //name: cookie_name,
-            store: new RedisStore({port: 7777})//, // connect-mongo session store
+            store: new RedisStore({
+                host: redisUrl.host,
+                //port: redisUrl.port,
+                db: 0,
+                pass: '35a5a60f5b75d1fa46b1d798ffa4e46b'
+            })//, // connect-mongo session store
             //proxy: true,
             //resave: true,
             //saveUninitialized: true
