@@ -39,5 +39,5 @@ userSchema.methods.hasWant = function(categoryId) {
 
 // create the model for users and expose it to our app
 module.exports = function(dbconn) {
-	return dbconn.model('User', userSchema, 'users');
+	return dbconn.model('BarterUser', userSchema);
 };

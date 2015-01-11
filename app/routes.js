@@ -1,15 +1,16 @@
 // app/routes.js
+var https = require('https');
 var mongoose = require('mongoose');
 var configDB = require('../config/database.js');
 var barterConn = mongoose.createConnection(configDB.barter_url);
 var climbtimeConn = mongoose.createConnection(configDB.climbtime_url);
-var User = require('./models/user.js')(climbtimeConn);
+var ClimbtimeUser = require('./models/climbtimeuser.js')(climbtimeConn);
 var BarterUser = require('./models/user.js')(barterConn);
 var Category = require('./models/category.js')(climbtimeConn);
-var RestClient = require('node-rest-client').Client;
-var restClient = new RestClient();
+var Concept =  require('./models/concept.js')(climbtimeConn);
 var utils = require('./utils.js');
 var uuid = require('node-uuid');
+var barterList = require('./barter_list_crud.js');
 
 var THIRTY_MINUTES = 30 * 60000;
 
@@ -36,74 +37,96 @@ module.exports = function (app, passport) {
         var url = 'https://graph.facebook.com/me?fields=id&access_token=' 
             + request.query["facebook-token"];
 
-        restClient.get(url,  function (data, res) {
-            data = JSON.parse(data);
-            if(data == undefined) {
-                response.json({error : 'no json object to parse'});
-            }
-            if(data.error !== undefined) {
-                response.json({'error:': data.error});
-                return;
-            }
+        https.get(url, function(res) {
 
-            //if access token date is less than 30 minutes old
-            if  (!utils.unset(request.session.accessTokenDate)
-                && new Date() <= new Date((new Date((request.session.accessTokenDate)).getTime() + THIRTY_MINUTES))) {
-                //return the accessToken to user
-                return response.json({ accessToken : request.session.accessToken });
-            }
-            //see if user exists already in mongodb climbtime database
-            else {
+            res.on('data', function(data) {
+                data = JSON.parse(data);
+                if(data == undefined) {
+                    response.json({error : 'no json object to parse'});
+                }
+                if(data.error !== undefined) {
+                    response.json({'error:': data.error});
+                    return;
+                }
 
-                //see if we can find a Climbtime user with that facebook token
-                User.findOne({'facebook.userId': request.query['facebook-id']}, function (error, user) {
+                //if access token date is less than 30 minutes old
+                if  (!utils.unset(request.session.accessTokenDate)
+                    && new Date() <= new Date((new Date((request.session.accessTokenDate)).getTime() + THIRTY_MINUTES))) {
+                    //return the accessToken to user
+                    return response.json({ accessToken : request.session.accessToken });
+                }
+                //see if user exists already in mongodb climbtime database
+                else {
 
-                    //user not found
-                    if (!user) {
+                    //see if we can find a Climbtime user with that facebook token
+                    ClimbtimeUser.findOne({'facebook.userId': request.query['facebook-id']}, function (error, user) {
 
-                        // see if we can
-                        //create the uuid for the accesstoken and put it in the session and user collection
-                        request.session.accessToken = uuid.v1();
+                        //user not found
+                        if (!user) {
 
-                        var newUser = new User({
-                            'access_token': request.session.accessToken,
-                            'access_token_date': new Date()
-                        });
+                            // see if we can
+                            //create the uuid for the accesstoken and put it in the session and user collection
+                            request.session.accessToken = uuid.v1();
 
-                        newUser.save(function (err, user) {
-                            if (err) {
-                                response.json({error: 'cannot save new climbtime user'});
-                                return;
-                            }
+                            var newClimbtimeUser = new ClimbtimeUser({
+                                'access_token': request.session.accessToken,
+                                'access_token_date': new Date(),
+                                'facebook.userId' :  request.query['facebook-id']
+                            });
 
-                            request.session.climbtimeId = user._id;
-                            request.session.save();
-                            return response.json({'accessToken': request.session.accessToken});
+                            newClimbtimeUser.save(function (err, user) {
+                                if (err) {
+                                    response.json({error: 'cannot save new climbtime user'});
+                                    return;
+                                }
 
-                        });
+                                request.session.climbtimeId = user._id;
+                                request.session.save();
 
-                    }
-                    else {
-                        //return the user's access token if available
-                        request.session.accessToken =  user.access_token;
-                        request.session.accessTokenDate = user.access_token_date;
+                                //create BarterUser
+                                var newBarterUser = new BarterUser({
+                                    climbtime_id : user._id,
+                                    has : [],
+                                    wants : [],
+                                    interests : [],
+                                    creation_date : new Date()
+                                });
 
-                        if(new Date((new Date(user.access_token_date).getTime() + THIRTY_MINUTES)) <= new Date()) {
-                            return response.json({ authToken : request.session.accessToken });
+                                newBarterUser.save(function(err, user){
+                                    if (err) {
+                                        response.json({error: 'cannot save new barter user'});
+                                        return;
+                                    }
+                                });
+
+                                return response.json({'accessToken': request.session.accessToken});
+
+                            });
+
                         }
                         else {
-                            response.session.accessToken = uuid.v1();
-                            response.session.accessTokenDate = new Date();
-                            return response.json( {accessToken : response.session.accessToken });
-                        }
-                    }
-                });
-            }
+                            //return the user's access token if available
+                            request.session.accessToken =  user.access_token;
+                            request.session.accessTokenDate = user.access_token_date;
+                            request.session.climbtimeId = user._id;
 
-        }).on('error', function (err) {
-                console.log('something went wrong on the request', err.request.options);
-                response.json({ 'error' : err });
+                            if(new Date((new Date(user.access_token_date).getTime() + THIRTY_MINUTES)) <= new Date()) {
+                                return response.json({ accessToken : request.session.accessToken });
+                            }
+                            else {
+                                request.session.accessToken = uuid.v1();
+                                request.session.accessTokenDate = new Date();
+                                return response.json( {accessToken : request.session.accessToken });
+                            }
+                        }
+                    });
+                }
             });
+
+        }).on('error', function(e) {
+            console.error(e);
+        });
+
     });
 
     ////CLIMBTIME API
@@ -233,15 +256,15 @@ module.exports = function (app, passport) {
         if (!utils.hasRouteAccess(request.query['access-token'], request, response)) return;
         if (!utils.hasParameters(request, ['title'], response)) return;
 
-        Category.findOne({ title: request.query.title }, function (error, category) {
+        Concept.findOne({ title: request.query.title }, function (error, concept) {
 
-            if (!category) {
+            if (!concept) {
                 //create new category if category doesn't exist
-                category = new Category({ title: request.query.title });
-                category.save();
+                concept = new Concept({ title: request.query.title });
+                concept.save();
             }
 
-            response.json(category);
+            response.json(concept);
         });
     });
 
@@ -274,31 +297,50 @@ module.exports = function (app, passport) {
         });
 
     });
-    
-    //GET api/haves: gets the list of 'haves' from user and returns it to user
+
+    //Barter App API
+
+
+    //GET api/have: gets the list of 'haves' from user and returns it to user
     //query params:
     //	access-token: token received from /api/get_access_token
-    app.get('/api/haves', function (request, response) {
-        if (!utils.hasRouteAccess(request.query['access-token'], request, response)) return;
-        
-        BarterUser.findOne({ 'facebook.id' : request.session.facebookId }, function (error, user) {
-            if (!user) response.json({ message: 'no user found' });
-            else response.json(user.has);
-        });
-    });
+    //returns:
+    //  array of full categories in have list
+    app.get('/api/have', barterList.getHaves);
+
+    //POST api/have: adds categories to the haves list
+    //query params:
+    //	access-token: token received from /api/get_access_token
+    //  categories: array of category ids to add to have list
+    //returns:
+    //  array of full categories in have list
+    app.post('/api/have', barterList.postHaves);
+
+    //DELETE api/have: removes categories from the haves list
+    //query params:
+    //	access-token: token received from /api/get_access_token
+    //  categories: array of category ids to remove from have list
+    app.delete('/api/have', barterList.deleteHaves);
 
 
     //GET api/wants: gets the list of 'wants' from user
     //query params:
     //	access-token: token received from /api/get_acccess_token
-    app.get('/api/wants', function (request, response) {
-        if (!utils.hasRouteAccess(request.query['access-token'], request, response)) return;
-        
-        BarterUser.findOne({ 'facebook.id' : request.session.facebookId }, function (error, user) {
-            if (!user) response.json({ message: 'no user found' });
-            else response.json(user.wants);
-        });
-    });
+    app.get('/api/want', barterList.getWants);
+
+    //POST api/want: adds categories to the haves list
+    //query params:
+    //	access-token: token received from /api/get_access_token
+    //  categories: array of category ids to add to have list
+    //returns:
+    //  array of full categories in have list
+    app.post('/api/want', barterList.postWants);
+
+    //DELETE api/want: removes categories from the haves list
+    //query params:
+    //	access-token: token received from /api/get_access_token
+    //  categories: array of category ids to remove from have list
+    app.delete('/api/want', barterList.deleteWants);
     
     //GET api/me: gets the user's data
     //remarks: uses facebook id from session
@@ -317,7 +359,7 @@ module.exports = function (app, passport) {
     //query params:
     //	access-token: token received from /api/get_acccess_token
     app.get('/api/get_numbers', function (request, response) {
-        if (!utils.hasRouteAccess(request.query.accessToken, request, response)) return;
+        if (!utils.hasRouteAccess(request.query['access-token'], request, response)) return;
         
         BarterUser.findOne({ 'facebook.id' : req.session.facebookId }, function (error, barterUser) {
             var wantsLength = 0;

@@ -2,9 +2,8 @@
  * New node file
  */
 var mongoose = require('mongoose');
-var dbConfig = require('../../config/database.js');
 
-var User = mongoose.Schema({
+var userSchema = mongoose.Schema({
     //_id : the user id
     facebook         : {
         userId       : String,
@@ -41,6 +40,6 @@ var Permission = mongoose.Schema({
 
 
 module.exports = function(dbconn) {
-	return dbconn.model('User', User, 'User');
+	return dbconn.model('ClimbtimeUser', userSchema);
 };
 

@@ -42,8 +42,8 @@ var configDB = require('../config/database.js');
 var climbtimeConn = '';
 var ClimbtimeUser = null;
 var Category = null;
-var facebookToken = "CAADs8OVZALMEBAGGzk1EZCcHZBx9Q210kZAb6oXtcah5UG6L2wJleAvHDqDkpLOe2pQ9AEu4UUYyKgsdxz3S5I382ubDjQIbfbarsDKlewhf3tPh5dP9pWF2PiUzrbFQKk1N3ktnE94ZBFKQW5bGbNxaPm4tCPvCgixKPSdKpqtUGPZATcd5Cnn4B9ZApd7ySngJye8i1m0FrKEPDpiZCCnc";
-var facebookId = "1384707158489078";
+var facebookToken = "CAADs8OVZALMEBAPsbOANjfwOZAZAvetDl6qSRI8HctLfbuRd4rG6tr9ekNmOhXyH8nKo73ZCDHfjs1Uhm6gLO0aPrvGhFB8OEuT2iQLPjifWxk1uuYc7EVtMe0dk1t6nkLzy9KDCISN7hzZBxLAV9oa0QFUYQZAi8X8FpEpHinhyXNm5yeQbaFPZA7anmDhPYWocUcpkh6ZBekrPcjzJNXaO";
+var facebookId = "100008874782837";
 var http = require('http');
 var accessToken = '';
 var PERSON_CATEGORY_ID = '539740c3f1fa991089c67f16';
@@ -115,11 +115,12 @@ describe('REST', function () {
     })
 
 
+    /*
     /////////////////////////////////////////////////////////////////////
     //  TEST for getting categories
     /////////////////////////////////////////////////////////////////////
     describe('GET: category', function() {
-        this.timeout(15000);
+        this.timeout(30000);
 
         var categoryTitle = '';
         var accessToken = '';
@@ -134,6 +135,7 @@ describe('REST', function () {
                     if (err)
                         return done(err);
 
+                    res.body.should.have.property('accessToken');
                     accessToken = res.body.accessToken;
                     accessToken.should.not.equal('');
 
@@ -163,6 +165,7 @@ describe('REST', function () {
                     if (err)
                         return done(err);
 
+                    res.body.should.have.property('accessToken');
                     accessToken = res.body.accessToken;
                     accessToken.should.not.equal('');
 
@@ -192,6 +195,7 @@ describe('REST', function () {
                     if (err)
                         return done(err);
 
+                    res.body.should.have.property('accessToken');
                     accessToken = res.body.accessToken;
                     accessToken.should.not.equal('');
 
@@ -221,6 +225,7 @@ describe('REST', function () {
                     if (err)
                         return done(err);
 
+                    res.body.should.have.property('accessToken');
                     accessToken = res.body.accessToken;
                     accessToken.should.not.equal('');
 
@@ -764,25 +769,279 @@ describe('REST', function () {
         })
     })
 
-    /*
-    describe('POST: have', function() {
-        it('should add category to database', function(done){
 
+    */
+
+    describe('GET: have', function() {
+        this.timeout(30000);
+
+        it('should return an array', function(done){
+            request
+                .get('/api/access_token?facebook-token=' + facebookToken + '&facebook-id=' + facebookId)
+                .set('Accept', 'application/json')
+                .expect('Content-Type', /json/)
+                .expect(200)
+                .end(function (err, res) {
+                    if (err) return done(err);
+
+                    res.body.should.have.property('accessToken');
+                    accessToken = res.body.accessToken;
+
+                    request
+                        .get('/api/have?access-token=' + accessToken)
+                        .set('Accept', 'application/json')
+                        .expect('Content-Type', /json/)
+                        .expect(200)
+                        .end(function (err, res) {
+                            if (err) return done(err);
+
+                            res.body.should.be.instanceof(Array);
+                            done();
+                        });
+                });
         })
+    })
+
+    describe('POST: have', function() {
+        this.timeout(15000);
+
+        it('should return error when invalid id string is supplied', function(done){
+            request
+                .get('/api/access_token?facebook-token=' + facebookToken + '&facebook-id=' + facebookId)
+                .set('Accept', 'application/json')
+                .expect('Content-Type', /json/)
+                .expect(200)
+                .end(function (err, res) {
+                    if (err) return done(err);
+
+                    res.body.should.have.property('accessToken');
+                    accessToken = res.body.accessToken;
+                    var postData = {
+                        'access-token' : accessToken,
+                        categories : ['123']
+                    };
+
+                    request
+                        .post('/api/have')
+                        .send(postData)
+                        .set('Accept', 'application/json')
+                        .expect('Content-Type', /json/)
+                        .expect(200)
+                        .end(function (err, res) {
+                            if (err) return done(err);
+
+                            res.body.should.have.property('error');
+                            done();
+                        });
+                });
+        })
+
+        it('should add category to database', function(done) {
+            //add category
+            categoryTitle = Math.random().toString(36).substring(7);
+
+            request
+                .get('/api/access_token?facebook-token=' + facebookToken + '&facebook-id=' + facebookId)
+                .set('Accept', 'application/json')
+                .expect('Content-Type', /json/)
+                .expect(200)
+                .end(function (err, res) {
+                    if (err) return done(err);
+
+                    res.body.should.have.property('accessToken');
+                    accessToken = res.body.accessToken;
+
+                    //get the "Person" category
+                    request
+                        .get('/api/category?access-token=' + accessToken + '&title=Person')
+                        .set('Accept', 'application/json')
+                        .expect('Content-Type', /json/)
+                        .expect(200)
+                        .end(function (err, res) {
+                            if (err)
+                                return done(err);
+
+                            res.body.should.have.property('categories');
+                            res.body.categories.length.should.be.above(0);
+                            res.body.categories[0].should.have.property('title');
+                            res.body.categories[0].title.should.equal('Person');
+
+                            //POST the new category using "PERSON" as the parent
+                            res.body.categories[0].should.have.property('id');
+                            var parentId = res.body.categories[0].id;
+
+                            var postData = {
+                                accessToken: accessToken,
+                                title: categoryTitle,
+                                parents: [parentId]
+                            };
+
+                            request
+                                .post('/api/category')
+                                .send(postData)
+                                .set('Accept', 'application/json')
+                                .expect('Content-Type', /json/)
+                                .expect(200)
+                                .end(function (err, res) {
+                                    if (err)
+                                        return done(err);
+
+                                    res.body.should.have.property('id');
+                                    var newCategoryId = res.body.id;
+
+                                    //add have
+                                    var postData = {
+                                        'access-token' : accessToken,
+                                        categories : [newCategoryId]
+                                    };
+
+                                    request
+                                        .post('/api/have')
+                                        .send(postData)
+                                        .set('Accept', 'application/json')
+                                        .expect('Content-Type', /json/)
+                                        .expect(200)
+                                        .end(function (err, res) {
+                                            if (err) return done(err);
+
+                                            //get have and validate the size of have array is +1 and includes new category id
+                                            res.body.should.be.instanceof(Array);
+                                            res.body.should.containEql(newCategoryId);
+
+                                            done();
+                                        });
+
+
+
+                                    return done();
+                                });
+                        });
+
+                })
+        })
+
     })
 
     describe('DELETE: have', function() {
-        it('should', function(done){
+        this.timeout(15000);
+
+
+        it('should remove category from haves', function(done){
+            //add category
+            categoryTitle = Math.random().toString(36).substring(7);
+
+            request
+                .get('/api/access_token?facebook-token=' + facebookToken + '&facebook-id=' + facebookId)
+                .set('Accept', 'application/json')
+                .expect('Content-Type', /json/)
+                .expect(200)
+                .end(function (err, res) {
+                    if (err) return done(err);
+
+                    res.body.should.have.property('accessToken');
+                    accessToken = res.body.accessToken;
+
+                    //get the "Person" category
+                    request
+                        .get('/api/category?access-token=' + accessToken + '&title=Person')
+                        .set('Accept', 'application/json')
+                        .expect('Content-Type', /json/)
+                        .expect(200)
+                        .end(function (err, res) {
+                            if (err)
+                                return done(err);
+
+                            res.body.should.have.property('categories');
+                            res.body.categories.length.should.be.above(0);
+                            res.body.categories[0].should.have.property('title');
+                            res.body.categories[0].title.should.equal('Person');
+
+                            //POST the new category using "PERSON" as the parent
+                            res.body.categories[0].should.have.property('id');
+                            var parentId = res.body.categories[0].id;
+
+                            var postData = {
+                                accessToken: accessToken,
+                                title: categoryTitle,
+                                parents: [parentId]
+                            };
+
+                            request
+                                .post('/api/category')
+                                .send(postData)
+                                .set('Accept', 'application/json')
+                                .expect('Content-Type', /json/)
+                                .expect(200)
+                                .end(function (err, res) {
+                                    if (err)
+                                        return done(err);
+
+                                    res.body.should.have.property('id');
+                                    var newCategoryId = res.body.id;
+
+                                    //add have
+                                    var postData = {
+                                        'access-token' : accessToken,
+                                        categories : [newCategoryId]
+                                    };
+
+                                    //add have
+                                    request
+                                        .post('/api/have')
+                                        .send(postData)
+                                        .set('Accept', 'application/json')
+                                        .expect('Content-Type', /json/)
+                                        .expect(200)
+                                        .end(function (err, res) {
+                                            if (err) return done(err);
+
+                                            //get have and validate the size of have array is +1 and includes new category id
+                                            res.body.should.be.instanceof(Array);
+                                            res.body.should.containEql(newCategoryId);
+
+                                            var hasLength = res.body.length;
+
+                                            //remove the category from has
+                                            var postData = {
+                                                'access-token' : accessToken,
+                                                categories : [newCategoryId]
+                                            };
+
+                                            request
+                                                .delete('/api/have')
+                                                .send(postData)
+                                                .set('Accept', 'application/json')
+                                                .expect('Content-Type', /json/)
+                                                .expect(200)
+                                                .end(function (err, res) {
+                                                    if (err) return done(err);
+
+                                                    //get have and validate size is -1 and doesn't contain the category id
+                                                    res.body.length.should.equal(hasLength - 1);
+                                                    res.body.should.not.containEql(newCategoryId);
+
+                                                    done();
+                                                });
+
+                                            done();
+                                        });
+
+
+
+                                    return done();
+                                });
+                        });
+
+                })
 
         })
     })
 
-    describe('GET: have', function() {
-        it('should return an array', function(done){
+     describe('GET: want', function() {
+     it('should return an array', function(done){
 
-        })
-    })
-
+     })
+     })
 
      describe('POST: want', function() {
      it('should add category to database', function(done){
@@ -796,11 +1055,5 @@ describe('REST', function () {
      })
      })
 
-     describe('GET: want', function() {
-     it('should return an array', function(done){
 
-     })
-     })
-
-    */
 })
