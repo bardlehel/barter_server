@@ -4,7 +4,7 @@ module.exports = {
 	//'barter_url' : 'mongodb://localhost/barter' ,
 	'climbtime_url' : 'mongodb://lehel:Kovach789@paulo.mongohq.com:10011/climbtime',
 	//'climbtime_url' : 'mongodb://localhost/climbtime',
-	'redis_url' : 	'redis://redistogo:35a5a60f5b75d1fa46b1d798ffa4e46b@mummichog.redistogo.com:10138/'
+	'redis_url' : 	'redis://rediscloud:a9J5xZvlYit0JQGu@pub-redis-11536.us-east-1-4.2.ec2.garantiadata.com:11536'
 
 };
 

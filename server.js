@@ -11,9 +11,12 @@ var session = require('express-session');
 var RedisStore = require('connect-redis')(session);
 var bodyParser = require('body-parser');
 var cookieParser = require('cookie-parser');
+var redis = require('redis');
+var url = require('url');
 var dbConfig = require('./config/database.js');
-var redisUrl   = require("url").parse(dbConfig.redis_url),
-    redisAuth = redisUrl.auth.split(':'); ;
+var redisURL = url.parse(dbConfig.redis_url);
+var redisClient = redis.createClient(redisURL.port, redisURL.hostname, {no_ready_check: true});
+redisClient.auth(redisURL.auth.split(":")[1]);
 
 
 // configuration ===============================================================
@@ -24,18 +27,10 @@ app.use(cookieParser());
 app.use(bodyParser.json());
 app.use(bodyParser.urlencoded({ extended: true }));
 app.use(session({
-            secret: 'asfdfasdf234e23432',
-            //name: cookie_name,
-            store: new RedisStore({
-                host: redisUrl.host,
-                //port: redisUrl.port,
-                db: 0,
-                pass: '35a5a60f5b75d1fa46b1d798ffa4e46b'
-            })//, // connect-mongo session store
-            //proxy: true,
-            //resave: true,
-            //saveUninitialized: true
-    }));
+    secret: 'asfdfasdf234e23432',
+    store: new RedisStore({client: redisClient})
+}));
+
 app.use(passport.initialize());
 //app.use(passport.session());
 app.use(cors());
