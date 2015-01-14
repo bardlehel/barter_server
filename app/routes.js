@@ -246,7 +246,21 @@ module.exports = function (app, passport) {
         });
 
     });
+    
+    //GET api/subcategories:  gets the children categories of a supplied category
+    //query params:
+    //  category-id: parent id to search with
+    app.get('api/subcategories', function (request, response) { 
+        if (!utils.hasParameters(request.query, ['category-id'], response)) return;
+        if (utils.hasIllegalCharacters(request.query, ['category-id'], response)) return;
 
+        Category.find({ parent : request.query['category-id']}, function (error, categories) {
+            if (error) return response.json({ error : error });
+            if (!categories) return response.json({ error : 'no categories found with that parent' });
+
+            return response.json(categories);
+        });
+    });
 
     //GET api/topic:  returns a topic from category collection, or new category if not found
     //query params:
@@ -349,9 +363,9 @@ module.exports = function (app, passport) {
     app.get('/api/me', function (request, response) {
         if (!utils.hasRouteAccess(request.query['access-token'], request, response)) return;
         
-        BarterUser.findOne({ 'facebook.id' : req.session.facebookId }, function (err, barterUser) {
-            if (!barterUser) res.json({ error: true, message: 'no user found' });
-            else res.json(barterUser);
+        BarterUser.findOne({ 'climbtime_id' : request.session.climbtimeId }, function (err, barterUser) {
+            if (!barterUser) response.json({ error: true, message: 'no user found' });
+            else response.json(barterUser);
         });
     });
     
@@ -361,12 +375,12 @@ module.exports = function (app, passport) {
     app.get('/api/get_numbers', function (request, response) {
         if (!utils.hasRouteAccess(request.query['access-token'], request, response)) return;
         
-        BarterUser.findOne({ 'facebook.id' : req.session.facebookId }, function (error, barterUser) {
+        BarterUser.findOne({ 'climbtime_id' : request.session.climbtimeId }, function (error, barterUser) {
             var wantsLength = 0;
             var havesLength = 0;
             
             if (!barterUser) {
-                res.json({ error: true, message: 'no user found' });
+                response.json({ error: true, message: 'no user found' });
                 return;
             }
             
@@ -376,98 +390,20 @@ module.exports = function (app, passport) {
             if (typeof barterUser.haves != 'undefined')
                 havesLength = barterUser.haves.length;
             
-            res.json({
+            response.json({
                 wants: wantsLength,
                 haves: havesLength
             });
 			
         });
     });
-    
-    
-
-    
-
-    
-    // POST api/wants: adds a 'want' to the list of 'wants' of the user
-    //query params:
-    //	access-token: token received from /api/get_acccess_token
-    //	category_ids: array of ids of the topic/category to be added to 'wants' list
-    app.post('/api/wants', function (request, response) {
-        if (!utils.hasRouteAccess(request.query['access-token'], request, response)) return;
-        if (!utils.hasParameters(request, ['category_id'], response)) return;
-
-        BarterUser.findOne({ 'facebook.id' : req.session.facebookId }, function (error, user) {
-            //don't duplicate
-            if (user.hasWant(req.query.category_id)) return;
-            
-            user.wants.push(req.query.category_id);
-            user.save();
-            
-            res.json({ result: 'success' });
-        });
-    });
-
-    //POST api/haves
-    app.post('/api/haves', function (req, res) {
-        if (!utils.hasRouteAccess(request.query['access-token'], request, response)) return;
-        if (!utils.hasParameters(request, ['category_id'], response)) return;
-
-        if (req.query.accessToken != req.session.accessToken) {
-            res.json({ result: 'failure', reason: 'incorrect access token' });
-        }
-        
-        //get my user
-        BarterUser.findOne({ 'climbtime.user_id' : req.user.id }, function (err, barterUser) {
-            
-            if (barterUser.has.indexOf(req.query.category_id) > -1)
-                return;
-            
-            barterUser.has.push(req.query.category_id);
-            barterUser.save();
-        });
-    });
-
-    //DELETE api/wants:  removes categories (ids) from wants list
-    app.delete('/api/wants', function (request, response) {
-        if (!utils.hasRouteAccess(request.query['access-token'], request, response)) return;
-        if (!utils.hasParameters(request, ['category_id'], response)) return;
-
-        if (request.query.accessToken != request.session.accessToken) {
-            response.json({ result: 'failure', reason: 'incorrect access token' });
-        }
-        
-        //get my user
-        BarterUser.findOne({ 'climbtime.user_id' : request.user.climbtime.id }, function (err, barterUser) {
-            barterUser.wants.remove(request.query.category_id);
-            barterUser.save();
-        });
-    });
-
-    //DELETE api/haves: removes categories from haves list
-    app.delete('/api/haves', function (request, response) {
-        if (!utils.hasRouteAccess(request.query['access-token'], request, response)) return;
-        if (!utils.hasParameters(request, ['category_id'], response)) return;
-
-        if (request.query.accessToken != request.session.accessToken) {
-            response.json({ result: 'failure', reason: 'incorrect access token' });
-        }
-        
-        //get my user
-        BarterUser.findOne({ 'climbtime.user_id' : request.user.climbtime.id }, function (err, barterUser) {
-            barterUser.has.remove(request.query.category_id);
-            barterUser.save();
-        });
-    });
 
     //GET api/users: gets users based on parameters
     // params:
-    //  haves:
-    //  wants:
+    //  has:  array of topics that users have
+    //  wants: array of topics that users want
     app.get('/api/users', function (req, res) {
-        if (req.query.accessToken != req.session.accessToken) {
-            res.json({ result: 'failure', reason: 'incorrect access token' });
-        }
+        if (!utils.hasRouteAccess(request.query['access-token'], request, response)) return;
         
         //get my user
         BarterUser.find({ has : req.query.category_id }, function (err, users) {
