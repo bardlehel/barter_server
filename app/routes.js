@@ -402,14 +402,41 @@ module.exports = function (app, passport) {
     // params:
     //  has:  array of topics that users have
     //  wants: array of topics that users want
-    app.get('/api/users', function (req, res) {
-        if (!utils.hasRouteAccess(request.query['access-token'], request, response)) return;
+    app.get('/api/users', function (request, response) {
+        var paramArray = ['has', 'wants'];
         
+        if (!utils.hasRouteAccess(request.query['access-token'], request, response)) return;
+        if (!utils.hasParameters(request.query, paramArray, response)) return;
+        if (utils.hasIllegalCharacters(request.query, paramArray, response)) return;
+        
+        //check if has and wants are arrays
+        if (request.query.has.consturctor !== Array || request.query.wants.constructor !== Array)
+            return response.json({ error : 'non-array supplied' });        
         //get my user
-        BarterUser.find({ has : req.query.category_id }, function (err, users) {
-            res.json(users);
+        BarterUser.find({ '$or' : [{ has : { '$in' : request.query.has } }, { wants : { '$in' : request.query.wants } }] }, function (error, users) {
+            if (error) return response.json({ error : error });
+            if (!users) return response.json({ error : 'no users returned' }); 
+            return response.json(users);
         });
     });
+    
+    //GET api/message:  gets messages based on parameters given
+    app.get('api/messages', function (request, response) { 
+    
+    });
+    
+    //GET api/message:  gets a message based on message id
+    app.get('api/message/{message_id}', function (request, response) { 
+    
+    });
+    
+    //POST api/message:  posts a new message to a user
+    app.post('api/message', function (request, response) { 
+    
+    });
+    
+    //INTERESTS AND CHANNEL POSTS API (for version 0.2)
+    //app.get('api/posts', function );
 
     
     
